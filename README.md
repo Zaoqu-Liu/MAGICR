@@ -1,76 +1,81 @@
-# MAGICR <img src="man/figures/logo.png" align="right" height="139" />
+# MAGICR <img src="man/figures/logo.png" align="right" height="139" alt="" />
 
 <!-- badges: start -->
+[![R-universe](https://zaoqu-liu.r-universe.dev/badges/MAGICR)](https://zaoqu-liu.r-universe.dev/MAGICR)
 [![R-CMD-check](https://github.com/Zaoqu-Liu/MAGICR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/Zaoqu-Liu/MAGICR/actions/workflows/R-CMD-check.yaml)
 [![CRAN status](https://www.r-pkg.org/badges/version/MAGICR)](https://CRAN.R-project.org/package=MAGICR)
-[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+[![License: GPL-2](https://img.shields.io/badge/License-GPL--2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 <!-- badges: end -->
 
-**MAGICR** is a native R implementation of **MAGIC** (Markov Affinity-based Graph Imputation of Cells) for denoising and imputation of single-cell RNA sequencing data.
+## Overview
 
-MAGIC uses diffusion geometry to denoise single-cell data and fill in missing transcripts, as described in [van Dijk et al., 2018](https://doi.org/10.1016/j.cell.2018.05.061).
+**MAGICR** is a native R implementation of the MAGIC (**M**arkov **A**ffinity-based **G**raph **I**mputation of **C**ells) algorithm for denoising and imputation of single-cell RNA sequencing (scRNA-seq) data.
 
-## ✨ Features
+Single-cell RNA sequencing enables transcriptomic profiling at single-cell resolution, but technical limitations result in sparse count matrices with prevalent dropout events. MAGIC addresses this challenge by leveraging the underlying manifold structure of the data through diffusion geometry, effectively recovering missing transcripts while preserving biological signal.
 
-- **Pure R implementation** - No Python dependencies required
-- **C++ acceleration** - Optional RcppArmadillo backend for speed
-- **Parallel computing** - Built-in support via the `future` framework
-- **Seurat integration** - Seamless support for Seurat v4 and v5 objects
-- **SingleCellExperiment support** - Works with Bioconductor workflows
-- **Cross-platform** - Works on Windows, macOS, and Linux
+## Algorithm
 
-## 📦 Installation
+MAGIC performs data imputation through the following steps:
 
-### From GitHub (recommended)
+1. **Dimensionality Reduction**: Optional PCA to reduce computational complexity
+2. **Graph Construction**: Build a k-nearest neighbor (kNN) graph based on cell-cell distances
+3. **Kernel Computation**: Construct an α-decaying kernel with adaptive bandwidth:
+
+$$K(x_i, x_j) = \exp\left(-\left(\frac{\|x_i - x_j\|_2}{\varepsilon_i}\right)^\alpha\right)$$
+
+where $\varepsilon_i$ is the distance to the $k$-th nearest neighbor of cell $i$.
+
+4. **Diffusion Operator**: Compute the row-stochastic Markov transition matrix:
+
+$$P = D^{-1}K$$
+
+5. **Imputation**: Apply powered diffusion:
+
+$$X_{\text{imputed}} = P^t X$$
+
+The diffusion time $t$ controls the degree of smoothing. When `t = "auto"`, optimal $t$ is selected by minimizing Procrustes disparity between successive iterations.
+
+## Installation
+
+### From R-universe (Recommended)
 
 ```r
-# Install devtools if needed
-install.packages("devtools")
+install.packages("MAGICR", repos = "https://zaoqu-liu.r-universe.dev")
+```
 
-# Install MAGICR
-devtools::install_github("Zaoqu-Liu/MAGICR")
+### From GitHub
+
+```r
+# install.packages("remotes")
+remotes::install_github("Zaoqu-Liu/MAGICR")
 ```
 
 ### Dependencies
 
-Required:
-- R (>= 3.6.0)
-- Matrix
-- irlba
-- RANN
-- future
-- future.apply
-- progressr
+**Required:**
+- R (≥ 3.6.0)
+- Matrix, irlba, RANN, future
 
-Optional (for Seurat integration):
-- Seurat (>= 4.0.0)
-- SeuratObject
+**Optional:**
+- Seurat (≥ 4.0.0) for Seurat object integration
+- SingleCellExperiment for Bioconductor compatibility
+- RcppArmadillo for C++ acceleration
 
-Optional (for Bioconductor integration):
-- SingleCellExperiment
-- SummarizedExperiment
-
-## 🚀 Quick Start
+## Usage
 
 ### Basic Usage
 
 ```r
 library(MAGICR)
 
-# Create example data (500 cells x 100 genes)
-set.seed(42)
-data <- matrix(rpois(50000, lambda = 2), nrow = 500, ncol = 100)
-colnames(data) <- paste0("Gene", 1:100)
-rownames(data) <- paste0("Cell", 1:500)
+# Load example data
+data(magic_testdata)
 
 # Run MAGIC with default parameters
-result <- magic(data, t = 3, verbose = TRUE)
+result <- magic(magic_testdata, t = 3)
 
 # Access imputed data
-imputed <- as.matrix(result)
-
-# Or as data.frame
-imputed_df <- as.data.frame(result)
+imputed_data <- as.matrix(result)
 ```
 
 ### With Seurat Objects
@@ -79,121 +84,80 @@ imputed_df <- as.data.frame(result)
 library(Seurat)
 library(MAGICR)
 
-# Create Seurat object
-seurat_obj <- CreateSeuratObject(counts = t(data))
-seurat_obj <- NormalizeData(seurat_obj)
+# Run MAGIC on normalized data
+seurat_obj <- magic(seurat_obj, assay = "RNA", t = 3)
 
-# Run MAGIC
-seurat_obj <- magic(seurat_obj, t = 3)
-
-# Results are stored in "MAGIC_RNA" assay
+# Results stored in "MAGIC_RNA" assay
 DefaultAssay(seurat_obj) <- "MAGIC_RNA"
-
-# Visualize
-VlnPlot(seurat_obj, features = c("Gene1", "Gene2"))
 ```
 
-### With SingleCellExperiment
+### Automatic Diffusion Time Selection
 
 ```r
-library(SingleCellExperiment)
-library(MAGICR)
+# Automatically determine optimal t using Procrustes analysis
+result <- magic(data, t = "auto", t_max = 20)
 
-# Run MAGIC on SCE object
-sce <- magic(sce, assay_name = "logcounts", t = 3)
-
-# Results in "MAGIC" assay
-assay(sce, "MAGIC")
+# Check selected t
+print(result$params$t)
 ```
 
-## 📖 Parameters
+### Parameter Tuning
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `knn` | 5 | Number of nearest neighbors for kernel bandwidth |
-| `knn_max` | NULL | Maximum neighbors (default: 3 × knn) |
-| `decay` | 1 | Alpha decay parameter for kernel |
-| `t` | 3 | Number of diffusion steps (or "auto") |
-| `npca` | 100 | Number of PCA components for distance calculation |
-| `solver` | "exact" | "exact" or "approximate" |
-| `distance` | "euclidean" | Distance metric: "euclidean", "cosine", "manhattan", "correlation" |
-| `n_jobs` | 1 | Number of parallel workers (-1 for all) |
+| `knn` | 5 | Number of nearest neighbors for bandwidth estimation |
+| `knn_max` | 15 | Maximum neighbors for graph construction |
+| `decay` | 1 | α parameter controlling kernel sharpness |
+| `t` | 3 | Diffusion time (integer or "auto") |
+| `npca` | 100 | PCA components for distance computation |
+| `solver` | "exact" | "exact" or "approximate" (PCA-space) |
+| `distance` | "euclidean" | Distance metric: "euclidean", "cosine", "correlation" |
 
-## ⚡ Performance Tips
+## Methodological Details
 
-### Enable Parallel Computing
+### Adaptive Bandwidth
 
-```r
-library(future)
+The α-decaying kernel uses cell-specific bandwidth $\varepsilon_i$, defined as the distance to the $k$-th nearest neighbor. This provides:
+- Local density adaptation
+- Robustness to varying cell densities
+- Preservation of rare cell populations
 
-# Use all available cores
-plan(multisession, workers = parallel::detectCores())
+### Diffusion Time Selection
 
-# Run MAGIC
-result <- magic(data, t = 3, n_jobs = -1)
-```
+When `t = "auto"`, MAGIC iteratively applies the diffusion operator and monitors convergence using Procrustes disparity:
 
-### For Large Datasets
+$$d_{\text{Procrustes}}(X_t, X_{t+1}) < \theta$$
 
-```r
-# Use approximate solver (faster, uses PCA space)
-result <- magic(data, 
-                t = 3, 
-                solver = "approximate",
-                npca = 50)
-```
+The algorithm terminates when the disparity falls below threshold $\theta$ (default: 0.001).
 
-### Check C++ Acceleration
+### Computational Considerations
 
-```r
-# Check if C++ is available
-has_cpp_acceleration()
+- **Exact solver**: Computes imputation in full gene space. Recommended for smaller datasets or when preserving all gene relationships is critical.
+- **Approximate solver**: Operates in PCA space and projects back. Faster for large datasets but may introduce minor approximation errors.
 
-# View configuration
-magicr_config()
-```
+## Citation
 
-## 🔬 Algorithm Details
+If you use MAGICR in your research, please cite:
 
-MAGIC performs the following steps:
+> van Dijk, D., Sharma, R., Nainys, J., Yim, K., Kathail, P., Carr, A.J., Burdziak, C., Moon, K.R., Chaffer, C.L., Pattabiraman, D., Bierie, B., Mazutis, L., Wolf, G., Krishnaswamy, S., & Pe'er, D. (2018). **Recovering Gene Interactions from Single-Cell Data Using Data Diffusion**. *Cell*, 174(3), 716-729.e27. https://doi.org/10.1016/j.cell.2018.05.061
 
-1. **PCA Reduction** (optional): Reduces dimensions for faster distance computation
-2. **kNN Graph Construction**: Builds a k-nearest neighbor graph
-3. **Alpha-Decaying Kernel**: Computes adaptive bandwidth kernel
-4. **Diffusion Operator**: Creates row-stochastic Markov matrix
-5. **Diffusion**: Applies the operator t times to smooth expression
+## Related Resources
 
-The key formula:
+- [Original Python MAGIC](https://github.com/KrishnaswamyLab/MAGIC) - Krishnaswamy Lab implementation
+- [PHATE](https://github.com/KrishnaswamyLab/PHATE) - Dimensionality reduction using similar diffusion principles
+- [graphtools](https://github.com/KrishnaswamyLab/graphtools) - Python library for graph-based data analysis
 
-$$X_{imputed} = P^t \times X$$
+## License
 
-where $P$ is the diffusion operator and $t$ controls the smoothing level.
+GPL-2
 
-### Automatic t Selection
-
-When `t = "auto"`, MAGIC iteratively applies diffusion and stops when the Procrustes disparity between consecutive iterations falls below a threshold (default: 0.001).
-
-## 📚 Citation
-
-If you use MAGICR, please cite:
-
-> van Dijk, D., Sharma, R., Nainys, J., et al. (2018). Recovering gene interactions from single-cell data using data diffusion. *Cell*, 174(3), 716-729.e27. https://doi.org/10.1016/j.cell.2018.05.061
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-GPL (>= 2)
-
-## 👨‍💻 Author
+## Author
 
 **Zaoqu Liu** (liuzaoqu@163.com)
 
 - GitHub: [@Zaoqu-Liu](https://github.com/Zaoqu-Liu)
+- ORCID: [0000-0002-0452-742X](https://orcid.org/0000-0002-0452-742X)
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- Original MAGIC algorithm by [Krishnaswamy Lab](https://github.com/KrishnaswamyLab/MAGIC)
-- MATLAB implementation provided reference for this native R port
+This implementation is based on the original MAGIC algorithm developed by the [Krishnaswamy Lab](https://www.krishnaswamylab.org/) at Yale University. The MATLAB implementation served as the primary reference for this native R port.
