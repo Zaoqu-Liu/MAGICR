@@ -1,0 +1,54 @@
+Package: MAGICR
+Type: Package
+Title: Markov Affinity-Based Graph Imputation of Cells
+Version: 1.0.0
+Date: 2026-01-26
+Authors@R: c(
+    person("Zaoqu", "Liu", email = "liuzaoqu@163.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-0452-742X")),
+    person("Krishnaswamy Lab", role = "cph",
+           comment = "Original MAGIC algorithm"))
+Description: Native R implementation of MAGIC (Markov Affinity-based Graph 
+    Imputation of Cells) for denoising and imputation of single-cell RNA 
+    sequencing data. MAGIC uses diffusion geometry to denoise single-cell data 
+    and fill in missing transcripts, as described in van Dijk et al. (2018) 
+    <doi:10.1016/j.cell.2018.05.061>. This package provides a pure R 
+    implementation with optional C++ acceleration, parallel computing support,
+    and seamless integration with Seurat (v4 and v5) objects.
+License: GPL (>= 2)
+URL: https://github.com/Zaoqu-Liu/MAGICR
+BugReports: https://github.com/Zaoqu-Liu/MAGICR/issues
+Encoding: UTF-8
+LazyData: true
+Depends: 
+    R (>= 3.6.0)
+Imports:
+    Matrix (>= 1.3-0),
+    irlba (>= 2.3.0),
+    RANN (>= 2.6.0),
+    methods,
+    stats,
+    utils,
+    future,
+    future.apply,
+    progressr
+Suggests:
+    Seurat (>= 4.0.0),
+    SeuratObject,
+    SingleCellExperiment,
+    SummarizedExperiment,
+    ggplot2,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    Rcpp,
+    RcppArmadillo
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+RoxygenNote: 7.3.0
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+NeedsCompilation: yes
+SystemRequirements: C++11
+Biarch: true
