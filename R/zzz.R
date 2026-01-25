@@ -2,6 +2,16 @@
 #' @description Internal package initialization functions.
 #' @name zzz
 #' @keywords internal
+#' @import Matrix
+#' @import methods
+#' @importFrom stats median setNames
+#' @importFrom graphics abline points plot
+#' @importFrom utils packageVersion
+#' @importFrom irlba prcomp_irlba
+#' @importFrom RANN nn2
+#' @importFrom Rcpp sourceCpp
+#' @importFrom future plan nbrOfWorkers availableCores
+#' @useDynLib MAGICR, .registration = TRUE
 NULL
 
 # Package environment for storing state

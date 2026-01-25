@@ -166,6 +166,7 @@ rcpp_available <- function() {
 #' @param x First value
 #' @param y Default value if x is NULL
 #' @return x if not NULL, otherwise y
+#' @name null-or
 #' @keywords internal
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x

@@ -391,7 +391,7 @@ setup_parallel <- function(n_jobs, verbose = FALSE) {
 
 # S3 Methods ----------------------------------------------------------------
 
-#' @rdname magic
+#' @method print magic
 #' @export
 print.magic <- function(x, ...) {
   cat("MAGIC Result\n")
@@ -410,19 +410,19 @@ print.magic <- function(x, ...) {
   invisible(x)
 }
 
-#' @rdname magic
+#' @method summary magic
 #' @export
 summary.magic <- function(object, ...) {
   summary(object$result)
 }
 
-#' @rdname magic
+#' @method as.matrix magic
 #' @export
 as.matrix.magic <- function(x, ...) {
   as.matrix(x$result)
 }
 
-#' @rdname magic
+#' @method as.data.frame magic
 #' @export
 as.data.frame.magic <- function(x, ...) {
   x$result

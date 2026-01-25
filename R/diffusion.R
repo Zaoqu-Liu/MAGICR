@@ -248,6 +248,8 @@ magic_optimal_t <- function(data,
 #' @param threshold Threshold value
 #' @keywords internal
 plot_disparity <- function(error_vec, t_opt, threshold) {
+  t <- disparity <- NULL  # Avoid R CMD check note
+  
   if (requireNamespace("ggplot2", quietly = TRUE)) {
     df <- data.frame(t = seq_along(error_vec), disparity = error_vec)
     

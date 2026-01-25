@@ -149,7 +149,7 @@ set_seurat_data <- function(object, data, assay, layer = "data") {
 #' @param genes Character vector of gene names to return, or "all_genes" to
 #'   return all genes. Default is "all_genes".
 #' @param new_assay_name Character. Name for the new assay containing MAGIC
-#'   results. Default is "MAGIC_{assay}".
+#'   results. Default is "MAGIC_<assay>".
 #' @param knn Integer. Number of nearest neighbors. Default is 5.
 #' @param knn_max Integer or NULL. Maximum neighbors. Default is NULL.
 #' @param decay Numeric. Alpha decay parameter. Default is 1.
@@ -165,7 +165,7 @@ set_seurat_data <- function(object, data, assay, layer = "data") {
 #' @param ... Additional arguments passed to magic.matrix.
 #'
 #' @return The Seurat object with a new assay containing MAGIC-imputed values.
-#'   The new assay is named "MAGIC_{original_assay}" by default.
+#'   The new assay is named "MAGIC_<original_assay>" by default.
 #'
 #' @details This function:
 #'   \enumerate{
