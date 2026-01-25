@@ -68,6 +68,16 @@ reference:
       - log_transform
       - preprocessing
       
+  - title: "Analysis"
+    desc: "Analysis and visualization functions"
+    contents:
+      - knnDREMI
+      - magic_knnDREMI
+      - dremi
+      - animate_magic
+      - plot_magic_genes
+      - plot
+      
   - title: "Utilities"
     desc: "Helper functions"
     contents:
@@ -78,6 +88,8 @@ reference:
       - has_cpp_acceleration
       - magicr_config
       - set_magicr_options
+      - matrix_is_equivalent
+      - utils
       
   - title: "Seurat Integration"
     desc: "Functions for Seurat/SCE objects"

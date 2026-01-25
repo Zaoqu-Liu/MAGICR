@@ -33,7 +33,9 @@ Imports:
     methods,
     stats,
     utils,
-    future
+    future,
+    grDevices,
+    graphics
 Suggests:
     Seurat (>= 4.0.0),
     SeuratObject,
@@ -41,6 +43,8 @@ Suggests:
     SummarizedExperiment,
     S4Vectors,
     ggplot2,
+    gifski,
+    gridExtra,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown

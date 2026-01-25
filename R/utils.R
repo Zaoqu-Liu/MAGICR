@@ -283,3 +283,121 @@ format_time <- function(seconds) {
     sprintf("%.1f hours", seconds / 3600)
   }
 }
+
+#' Check Matrix Equivalence
+#'
+#' @description Check if two matrices are equivalent, handling sparse matrices
+#'   and data frames.
+#'
+#' @param X First matrix
+#' @param Y Second matrix
+#' @param tolerance Numeric tolerance for comparison. Default is 1e-10.
+#'
+#' @return Logical indicating if matrices are equivalent.
+#'
+#' @keywords internal
+matrix_is_equivalent <- function(X, Y, tolerance = 1e-10) {
+  # Same object
+  if (identical(X, Y)) {
+    return(TRUE)
+  }
+  
+  # Check dimensions
+  if (!identical(dim(X), dim(Y))) {
+    return(FALSE)
+  }
+  
+  # Convert to comparable format
+  X <- to_dense(X)
+  Y <- to_dense(Y)
+  
+  # Compare
+  max_diff <- max(abs(X - Y), na.rm = TRUE)
+  return(max_diff < tolerance)
+}
+
+#' Check for values between bounds
+#' @param x Value to check
+#' @param min_val Minimum value
+#' @param max_val Maximum value
+#' @param name Parameter name
+#' @keywords internal
+check_between <- function(x, min_val, max_val, name = deparse(substitute(x))) {
+  if (!is.null(x) && (x < min_val || x > max_val)) {
+    stop(sprintf("'%s' must be between %s and %s, got: %s", 
+                 name, min_val, max_val, x),
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Check if not a specific value, then apply checks
+#' @param x Exception value
+#' @param value Value to check
+#' @param ... Check functions
+#' @param name Parameter name
+#' @keywords internal
+check_if_not <- function(x, value, ..., name = NULL) {
+  if (!identical(value, x) && value != x) {
+    checks <- list(...)
+    for (check_fn in checks) {
+      if (is.function(check_fn)) {
+        check_fn(value, name %||% deparse(substitute(value)))
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Convert data to same format as reference
+#' @param data Data to convert
+#' @param reference Reference data
+#' @param columns Column names/indices
+#' @keywords internal
+convert_to_same_format <- function(data, reference, columns = NULL) {
+  # DataFrame output
+  if (is.data.frame(reference)) {
+    data <- as.data.frame(data)
+    
+    # Set column names
+    if (!is.null(columns)) {
+      if (is.numeric(columns)) {
+        colnames(data) <- colnames(reference)[columns]
+      } else {
+        colnames(data) <- columns
+      }
+    } else if (!is.null(colnames(reference))) {
+      colnames(data) <- colnames(reference)
+    }
+    
+    # Set row names
+    if (!is.null(rownames(reference))) {
+      rownames(data) <- rownames(reference)
+    }
+    
+    return(data)
+  }
+  
+  # Matrix output
+  if (is.matrix(reference)) {
+    data <- as.matrix(data)
+    
+    if (!is.null(columns)) {
+      if (is.numeric(columns)) {
+        colnames(data) <- colnames(reference)[columns]
+      } else {
+        colnames(data) <- columns
+      }
+    } else if (!is.null(colnames(reference))) {
+      colnames(data) <- colnames(reference)
+    }
+    
+    if (!is.null(rownames(reference))) {
+      rownames(data) <- rownames(reference)
+    }
+    
+    return(data)
+  }
+  
+  return(data)
+}

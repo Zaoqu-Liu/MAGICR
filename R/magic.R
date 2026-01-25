@@ -20,7 +20,7 @@ NULL
 #' @param solver "exact" or "approximate". Default is "exact".
 #' @param init Previous MAGIC result. Default is NULL.
 #' @param t_max Integer. Maximum t for automatic selection. Default is 20.
-#' @param distance Distance metric. Default is "euclidean".
+#' @param knn_dist Distance metric. Default is "euclidean".
 #' @param n_jobs Integer. Parallel workers (-1 for all). Default is 1.
 #' @param seed Integer or NULL. Random seed. Default is NULL.
 #' @param verbose Logical or integer. Default is TRUE.
@@ -75,7 +75,7 @@ magic.default <- function(data,
                           solver = c("exact", "approximate"),
                           init = NULL,
                           t_max = 20,
-                          distance = c("euclidean", "cosine", "manhattan", "correlation"),
+                          knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
                           n_jobs = 1,
                           seed = NULL,
                           verbose = TRUE,
@@ -96,7 +96,7 @@ magic.default <- function(data,
     solver = solver,
     init = init,
     t_max = t_max,
-    distance = distance,
+    knn_dist = knn_dist,
     n_jobs = n_jobs,
     seed = seed,
     verbose = verbose,
@@ -116,7 +116,7 @@ magic.matrix <- function(data,
                          solver = c("exact", "approximate"),
                          init = NULL,
                          t_max = 20,
-                         distance = c("euclidean", "cosine", "manhattan", "correlation"),
+                         knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
                          n_jobs = 1,
                          seed = NULL,
                          verbose = TRUE,
@@ -126,7 +126,7 @@ magic.matrix <- function(data,
   
   # Validate parameters
   solver <- match.arg(solver)
-  distance <- match.arg(distance)
+  knn_dist <- match.arg(knn_dist)
   
   check_positive_int(knn, "knn")
   if (!is.null(knn_max)) check_positive_int(knn_max, "knn_max")
@@ -195,7 +195,7 @@ magic.matrix <- function(data,
         knn = knn,
         knn_max = knn_max,
         decay = decay,
-        distance = distance,
+        distance = knn_dist,
         verbose = verbose
       ),
       "Diffusion operator", verbose
@@ -283,7 +283,7 @@ magic.matrix <- function(data,
       t = optimal_t,
       npca = npca,
       solver = solver,
-      distance = distance,
+      knn_dist = knn_dist,
       n_cells = nrow(data),
       n_genes = ncol(data)
     ),
@@ -403,7 +403,7 @@ print.magic <- function(x, ...) {
   cat(sprintf("    decay: %s\n", x$params$decay %||% "NULL"))
   cat(sprintf("    t: %s\n", x$params$t))
   cat(sprintf("    solver: %s\n", x$params$solver))
-  cat(sprintf("    distance: %s\n", x$params$distance))
+  cat(sprintf("    knn_dist: %s\n", x$params$knn_dist))
   if (!is.null(x$params$npca)) {
     cat(sprintf("    npca: %d\n", x$params$npca))
   }

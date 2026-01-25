@@ -134,7 +134,7 @@ diffusion geometry.</p>
 <span><span class="co">#&gt;     decay: 1</span></span>
 <span><span class="co">#&gt;     t: 3</span></span>
 <span><span class="co">#&gt;     solver: exact</span></span>
-<span><span class="co">#&gt;     distance: euclidean</span></span>
+<span><span class="co">#&gt;     knn_dist: euclidean</span></span>
 <span><span class="co">#&gt;     npca: 100</span></span></code></pre></div>
 </div>
 <div class="section level3">
@@ -190,13 +190,13 @@ that are obscured by dropout noise.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Original</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">magic_testdata</span><span class="op">[</span>, <span class="va">gene1</span><span class="op">]</span>, <span class="va">magic_testdata</span><span class="op">[</span>, <span class="va">gene2</span><span class="op">]</span>,</span>
+<span><span class="fu"><a href="../reference/plot.html">plot</a></span><span class="op">(</span><span class="va">magic_testdata</span><span class="op">[</span>, <span class="va">gene1</span><span class="op">]</span>, <span class="va">magic_testdata</span><span class="op">[</span>, <span class="va">gene2</span><span class="op">]</span>,</span>
 <span>     pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/grDevices/adjustcolor.html" class="external-link">adjustcolor</a></span><span class="op">(</span><span class="st">"#3498db"</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="va">gene1</span>, ylab <span class="op">=</span> <span class="va">gene2</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"Original"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Imputed</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">imputed_data</span><span class="op">[</span>, <span class="va">gene1</span><span class="op">]</span>, <span class="va">imputed_data</span><span class="op">[</span>, <span class="va">gene2</span><span class="op">]</span>,</span>
+<span><span class="fu"><a href="../reference/plot.html">plot</a></span><span class="op">(</span><span class="va">imputed_data</span><span class="op">[</span>, <span class="va">gene1</span><span class="op">]</span>, <span class="va">imputed_data</span><span class="op">[</span>, <span class="va">gene2</span><span class="op">]</span>,</span>
 <span>     pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/grDevices/adjustcolor.html" class="external-link">adjustcolor</a></span><span class="op">(</span><span class="st">"#e74c3c"</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="va">gene1</span>, ylab <span class="op">=</span> <span class="va">gene2</span>,</span>
 <span>     main <span class="op">=</span> <span class="st">"After MAGIC"</span><span class="op">)</span></span></code></pre></div>

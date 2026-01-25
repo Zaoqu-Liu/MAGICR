@@ -23,7 +23,7 @@ magic(data, ...)
   solver = c("exact", "approximate"),
   init = NULL,
   t_max = 20,
-  distance = c("euclidean", "cosine", "manhattan", "correlation"),
+  knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
   n_jobs = 1,
   seed = NULL,
   verbose = TRUE,
@@ -41,7 +41,7 @@ magic(data, ...)
   solver = c("exact", "approximate"),
   init = NULL,
   t_max = 20,
-  distance = c("euclidean", "cosine", "manhattan", "correlation"),
+  knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
   n_jobs = 1,
   seed = NULL,
   verbose = TRUE,
@@ -66,7 +66,7 @@ magic(data, ...)
   solver = c("exact", "approximate"),
   init = NULL,
   t_max = 20,
-  distance = c("euclidean", "cosine", "manhattan", "correlation"),
+  knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
   n_jobs = 1,
   seed = NULL,
   verbose = TRUE,
@@ -86,7 +86,7 @@ magic(data, ...)
   solver = c("exact", "approximate"),
   init = NULL,
   t_max = 20,
-  distance = c("euclidean", "cosine", "manhattan", "correlation"),
+  knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
   n_jobs = 1,
   seed = NULL,
   verbose = TRUE,
@@ -116,7 +116,7 @@ magic(data, ...)
 
 \item{t_max}{Maximum t. Default is 20.}
 
-\item{distance}{Distance metric. Default is "euclidean".}
+\item{knn_dist}{Distance metric. Default is "euclidean".}
 
 \item{n_jobs}{Parallel workers. Default is 1.}
 

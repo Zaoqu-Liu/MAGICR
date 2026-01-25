@@ -166,7 +166,7 @@ set_seurat_data <- function(object, data, assay, layer = "data") {
 #' @param solver Character. "exact" or "approximate". Default is "exact".
 #' @param init Previous MAGIC result. Default is NULL.
 #' @param t_max Integer. Maximum t for auto selection. Default is 20.
-#' @param distance Character. Distance metric. Default is "euclidean".
+#' @param knn_dist Character. Distance metric. Default is "euclidean".
 #' @param n_jobs Integer. Number of parallel workers. Default is 1.
 #' @param seed Integer or NULL. Random seed. Default is NULL.
 #' @param verbose Logical or integer. Verbosity. Default is TRUE.
@@ -224,14 +224,14 @@ magic.Seurat <- function(data,
                           solver = c("exact", "approximate"),
                           init = NULL,
                           t_max = 20,
-                          distance = c("euclidean", "cosine", "manhattan", "correlation"),
+                          knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
                           n_jobs = 1,
                           seed = NULL,
                           verbose = TRUE,
                           ...) {
   
   solver <- match.arg(solver)
-  distance <- match.arg(distance)
+  knn_dist <- match.arg(knn_dist)
   
   # Check Seurat is available
   if (!requireNamespace("Seurat", quietly = TRUE)) {
@@ -280,7 +280,7 @@ magic.Seurat <- function(data,
     solver = solver,
     init = init,
     t_max = t_max,
-    distance = distance,
+    knn_dist = knn_dist,
     n_jobs = n_jobs,
     seed = seed,
     verbose = verbose,
@@ -382,7 +382,7 @@ magic.Seurat <- function(data,
 #' @param solver Solver type. Default is "exact".
 #' @param init Previous result. Default is NULL.
 #' @param t_max Maximum t. Default is 20.
-#' @param distance Distance metric. Default is "euclidean".
+#' @param knn_dist Distance metric. Default is "euclidean".
 #' @param n_jobs Parallel workers. Default is 1.
 #' @param seed Random seed. Default is NULL.
 #' @param verbose Verbosity. Default is TRUE.
@@ -404,14 +404,14 @@ magic.SingleCellExperiment <- function(data,
                                         solver = c("exact", "approximate"),
                                         init = NULL,
                                         t_max = 20,
-                                        distance = c("euclidean", "cosine", "manhattan", "correlation"),
+                                        knn_dist = c("euclidean", "cosine", "manhattan", "correlation"),
                                         n_jobs = 1,
                                         seed = NULL,
                                         verbose = TRUE,
                                         ...) {
   
   solver <- match.arg(solver)
-  distance <- match.arg(distance)
+  knn_dist <- match.arg(knn_dist)
   
   # Check packages
   if (!requireNamespace("SingleCellExperiment", quietly = TRUE)) {
@@ -451,7 +451,7 @@ magic.SingleCellExperiment <- function(data,
     solver = solver,
     init = init,
     t_max = t_max,
-    distance = distance,
+    knn_dist = knn_dist,
     n_jobs = n_jobs,
     seed = seed,
     verbose = verbose,
