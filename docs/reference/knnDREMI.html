@@ -57,7 +57,8 @@
 <span>  n_mesh <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  n_jobs <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  plot <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  return_drevi <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  return_drevi <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -82,11 +83,11 @@
 
 
 <dt id="arg-n-mesh">n_mesh<a class="anchor" aria-label="anchor" href="#arg-n-mesh"></a></dt>
-<dd><p>Integer. Mesh points per bin. Default is 3.</p></dd>
+<dd><p>Integer. Mesh density within bins. Default is 3.</p></dd>
 
 
 <dt id="arg-n-jobs">n_jobs<a class="anchor" aria-label="anchor" href="#arg-n-jobs"></a></dt>
-<dd><p>Integer. Parallel workers. Default is 1.</p></dd>
+<dd><p>Integer. Number of parallel workers (not used in R). Default is 1.</p></dd>
 
 
 <dt id="arg-plot">plot<a class="anchor" aria-label="anchor" href="#arg-plot"></a></dt>
@@ -94,27 +95,36 @@
 
 
 <dt id="arg-return-drevi">return_drevi<a class="anchor" aria-label="anchor" href="#arg-return-drevi"></a></dt>
-<dd><p>Logical. Also return DREVI values. Default is FALSE.</p></dd>
+<dd><p>Logical. Also return DREVI density matrix. Default is FALSE.</p></dd>
+
+
+<dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
+<dd><p>Additional arguments passed to plot function.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>If return_drevi is FALSE, returns the DREMI value (numeric).
-  If return_drevi is TRUE, returns a list with dremi and drevi values.</p>
+  If return_drevi is TRUE, returns a list with dremi and drevi (density matrix).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>kNN-DREMI estimates the mutual information I(Y|X) using:
-  1. Build kNN graph on X
-  2. Resample Y based on local densities
-  3. Compute mutual information on resampled data</p>
-<p>Note: kNN-DREMI is asymmetric - it estimates I(Y|X), not I(X|Y).</p>
+    <p>kNN-DREMI is an adaptation of DREMI (Krishnaswamy et al. 2014) for
+  single cell RNA-sequencing data. DREMI captures the functional relationship
+  between two genes across their entire dynamic range. The key change to
+  kNN-DREMI is the replacement of the heat diffusion-based kernel-density
+  estimator by a k-nearest neighbor-based density estimator.</p>
+<p>Note: kNN-DREMI, like Mutual Information and DREMI, is not symmetric.
+  Here we are estimating I(Y|X).</p>
+<p>This implementation follows exactly the scprep Python implementation.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
     <p>van Dijk, D., et al. (2018). Recovering gene interactions from single-cell
 data using data diffusion. Cell, 174(3), 716-729.
 <a href="https://doi.org/10.1016/j.cell.2018.05.061" class="external-link">doi:10.1016/j.cell.2018.05.061</a></p>
+<p>Krishnaswamy, S., et al. (2014). Conditional density-based analysis of T cell
+signaling in single-cell data. Science, 346(6213), 1250689.</p>
     </div>
 
     <div class="section level2">

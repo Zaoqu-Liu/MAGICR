@@ -30,6 +30,7 @@ Imports:
     irlba (>= 2.3.0),
     RANN (>= 2.6.0),
     Rcpp,
+    rlang,
     methods,
     stats,
     utils,

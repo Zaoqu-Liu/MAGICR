@@ -1,9 +1,10 @@
 #' @title kNN-DREMI: Conditional Density Resampled Mutual Information
 #' @description Functions for computing kNN-DREMI on single-cell data.
 #' @name dremi
-#' @importFrom grDevices adjustcolor hcl.colors
+#' @importFrom grDevices adjustcolor hcl.colors dev.copy dev.off png
 #' @importFrom graphics hist par
-#' @importFrom stats var
+#' @importFrom stats var sd
+#' @importFrom rlang .data
 NULL
 
 #' Compute kNN-DREMI
@@ -11,29 +12,37 @@ NULL
 #' @description Calculates k-Nearest Neighbor conditional Density Resampled 
 #'   Estimate of Mutual Information as defined in van Dijk et al, 2018.
 #'
-#' @details kNN-DREMI estimates the mutual information I(Y|X) using:
-#'   1. Build kNN graph on X
-#'   2. Resample Y based on local densities
-#'   3. Compute mutual information on resampled data
+#' @details kNN-DREMI is an adaptation of DREMI (Krishnaswamy et al. 2014) for
+#'   single cell RNA-sequencing data. DREMI captures the functional relationship
+#'   between two genes across their entire dynamic range. The key change to
+#'   kNN-DREMI is the replacement of the heat diffusion-based kernel-density
+#'   estimator by a k-nearest neighbor-based density estimator.
 #'   
-#'   Note: kNN-DREMI is asymmetric - it estimates I(Y|X), not I(X|Y).
+#'   Note: kNN-DREMI, like Mutual Information and DREMI, is not symmetric.
+#'   Here we are estimating I(Y|X).
+#'   
+#'   This implementation follows exactly the scprep Python implementation.
 #'
 #' @param x Numeric vector. Independent variable (gene X).
 #' @param y Numeric vector. Dependent variable (gene Y).
 #' @param k Integer. Number of nearest neighbors. Default is 10.
 #' @param n_bins Integer. Number of bins for density resampling. Default is 20.
-#' @param n_mesh Integer. Mesh points per bin. Default is 3.
-#' @param n_jobs Integer. Parallel workers. Default is 1.
+#' @param n_mesh Integer. Mesh density within bins. Default is 3.
+#' @param n_jobs Integer. Number of parallel workers (not used in R). Default is 1.
 #' @param plot Logical. Create diagnostic plots. Default is FALSE.
-#' @param return_drevi Logical. Also return DREVI values. Default is FALSE.
+#' @param return_drevi Logical. Also return DREVI density matrix. Default is FALSE.
+#' @param ... Additional arguments passed to plot function.
 #'
 #' @return If return_drevi is FALSE, returns the DREMI value (numeric).
-#'   If return_drevi is TRUE, returns a list with dremi and drevi values.
+#'   If return_drevi is TRUE, returns a list with dremi and drevi (density matrix).
 #'
 #' @references
 #' van Dijk, D., et al. (2018). Recovering gene interactions from single-cell
 #' data using data diffusion. Cell, 174(3), 716-729.
 #' \doi{10.1016/j.cell.2018.05.061}
+#' 
+#' Krishnaswamy, S., et al. (2014). Conditional density-based analysis of T cell
+#' signaling in single-cell data. Science, 346(6213), 1250689.
 #'
 #' @export
 #' @examples
@@ -54,9 +63,13 @@ knnDREMI <- function(x, y,
                      n_mesh = 3,
                      n_jobs = 1,
                      plot = FALSE,
-                     return_drevi = FALSE) {
+                     return_drevi = FALSE,
+                     ...) {
   
   # Validate inputs
+  x <- as.numeric(x)
+  y <- as.numeric(y)
+  
   if (length(x) != length(y)) {
     stop("x and y must have the same length", call. = FALSE)
   }
@@ -71,123 +84,145 @@ knnDREMI <- function(x, y,
   check_positive_int(n_bins, "n_bins")
   check_positive_int(n_mesh, "n_mesh")
   
-  # Remove NAs
-  valid <- !is.na(x) & !is.na(y)
-  x <- x[valid]
-  y <- y[valid]
-  n <- length(x)
+  # Check for constant arrays
+  if (length(unique(x)) == 1 || length(unique(y)) == 1) {
+    warning("Attempting to calculate kNN-DREMI on a constant array. Returning 0",
+            call. = FALSE)
+    if (return_drevi) {
+      return(list(dremi = 0, drevi = matrix(0, n_bins, n_bins)))
+    } else {
+      return(0)
+    }
+  }
   
-  # Normalize to [0, 1]
-  x_norm <- (x - min(x)) / (max(x) - min(x) + .Machine$double.eps)
-  y_norm <- (y - min(y)) / (max(y) - min(y) + .Machine$double.eps)
+  # Step 0: Z-score normalize X and Y (exactly like Python)
+  x_sd <- sd(x)
+  y_sd <- sd(y)
+  if (x_sd == 0) x_sd <- 1
+  if (y_sd == 0) y_sd <- 1
+  x <- (x - mean(x)) / x_sd
+  y <- (y - mean(y)) / y_sd
   
-  # Build kNN on x
-  x_mat <- matrix(x_norm, ncol = 1)
-  knn_result <- RANN::nn2(x_mat, x_mat, k = k + 1)
-  knn_idx <- knn_result$nn.idx[, -1, drop = FALSE]  # Remove self
-  knn_dist <- knn_result$nn.dists[, -1, drop = FALSE]
+  # Step 1: Create bin and mesh points
+  # Note: n_bins + 1 edges for n_bins bins
+  x_bins <- seq(min(x), max(x), length.out = n_bins + 1)
+  y_bins <- seq(min(y), max(y), length.out = n_bins + 1)
   
-  # Compute local density (bandwidth = k-th neighbor distance)
-  bandwidth <- knn_dist[, k]
-  bandwidth[bandwidth == 0] <- .Machine$double.eps
+  # Mesh points: ((n_mesh + 1) * n_bins) + 1 points
+  n_mesh_points <- ((n_mesh + 1) * n_bins) + 1
+  x_mesh <- seq(min(x), max(x), length.out = n_mesh_points)
+  y_mesh <- seq(min(y), max(y), length.out = n_mesh_points)
   
   # Create mesh grid
-  x_mesh <- seq(0, 1, length.out = n_bins * n_mesh)
-  y_mesh <- seq(0, 1, length.out = n_bins * n_mesh)
+  mesh_points <- expand.grid(x = x_mesh, y = y_mesh)
+  mesh_points <- as.matrix(mesh_points)
   
-  # Compute conditional density P(Y|X) using kernel density estimation
-  # For each x bin, estimate the density of y
-  x_breaks <- seq(0, 1, length.out = n_bins + 1)
-  x_mids <- (x_breaks[-1] + x_breaks[-(n_bins + 1)]) / 2
+  # Step 2: Find k nearest neighbors from mesh points to data
+  data_xy <- cbind(x, y)
+  knn_result <- RANN::nn2(data_xy, mesh_points, k = k)
+  dists <- knn_result$nn.dists
   
-  # Initialize conditional density matrix
-  cond_density <- matrix(0, nrow = n_bins, ncol = n_bins)
+  # Step 3: Compute density at each mesh point
+  # density = k / (pi * r^2) where r is distance to k-th neighbor
+  area <- pi * (dists[, k])^2
+  area[area == 0] <- .Machine$double.eps
+  density <- k / area
   
-  for (i in seq_len(n_bins)) {
-    # Find points in this x bin
-    in_bin <- x_norm >= x_breaks[i] & x_norm < x_breaks[i + 1]
-    if (i == n_bins) {
-      in_bin <- x_norm >= x_breaks[i] & x_norm <= x_breaks[i + 1]
-    }
+  # Step 4: Create mask for mesh points NOT on bin boundaries
+  # (we exclude points exactly on bin edges)
+  on_x_boundary <- mesh_points[, 1] %in% x_bins
+  on_y_boundary <- mesh_points[, 2] %in% y_bins
+  mesh_mask <- on_x_boundary | on_y_boundary
+  
+  # Step 5: Sum densities into bins using histogram2d
+  # Only use mesh points that are NOT on boundaries
+  valid_mesh <- !mesh_mask
+  
+  # Use hist2d equivalent
+  bin_density <- matrix(0, n_bins, n_bins)
+  
+  if (sum(valid_mesh) > 0) {
+    valid_x <- mesh_points[valid_mesh, 1]
+    valid_y <- mesh_points[valid_mesh, 2]
+    valid_density <- density[valid_mesh]
     
-    if (sum(in_bin) > 0) {
-      y_in_bin <- y_norm[in_bin]
-      
-      # Histogram density for y in this x bin
-      y_hist <- hist(y_in_bin, breaks = seq(0, 1, length.out = n_bins + 1), 
-                     plot = FALSE)
-      cond_density[i, ] <- y_hist$counts / sum(y_hist$counts + .Machine$double.eps)
-    } else {
-      # Uniform if no points
-      cond_density[i, ] <- 1 / n_bins
-    }
-  }
-  
-  # Compute marginal density P(X)
-  x_hist <- hist(x_norm, breaks = x_breaks, plot = FALSE)
-  p_x <- x_hist$counts / sum(x_hist$counts + .Machine$double.eps)
-  
-  # Compute marginal density P(Y)
-  y_breaks <- seq(0, 1, length.out = n_bins + 1)
-  y_hist <- hist(y_norm, breaks = y_breaks, plot = FALSE)
-  p_y <- y_hist$counts / sum(y_hist$counts + .Machine$double.eps)
-  
-  # Compute joint density P(X, Y)
-  joint_density <- cond_density * p_x
-  
-  # Normalize joint density
-  joint_density <- joint_density / (sum(joint_density) + .Machine$double.eps)
-  
-  # Compute mutual information
-  # I(X;Y) = sum P(x,y) * log(P(x,y) / (P(x) * P(y)))
-  mi <- 0
-  for (i in seq_len(n_bins)) {
-    for (j in seq_len(n_bins)) {
-      if (joint_density[i, j] > 0 && p_x[i] > 0 && p_y[j] > 0) {
-        mi <- mi + joint_density[i, j] * 
-          log2(joint_density[i, j] / (p_x[i] * p_y[j] + .Machine$double.eps) + 
-                 .Machine$double.eps)
-      }
+    # Assign each valid mesh point to its bin
+    x_bin_idx <- findInterval(valid_x, x_bins, rightmost.closed = TRUE)
+    y_bin_idx <- findInterval(valid_y, y_bins, rightmost.closed = TRUE)
+    
+    # Clamp indices
+    x_bin_idx <- pmax(1, pmin(x_bin_idx, n_bins))
+    y_bin_idx <- pmax(1, pmin(y_bin_idx, n_bins))
+    
+    # Sum densities into bins
+    for (i in seq_along(valid_x)) {
+      bin_density[x_bin_idx[i], y_bin_idx[i]] <- 
+        bin_density[x_bin_idx[i], y_bin_idx[i]] + valid_density[i]
     }
   }
   
-  # DREMI = rescaled MI to [0, 1]
-  # Normalize by entropy of Y
-  h_y <- -sum(p_y[p_y > 0] * log2(p_y[p_y > 0] + .Machine$double.eps))
-  dremi <- mi / (h_y + .Machine$double.eps)
-  dremi <- max(0, min(1, dremi))  # Clamp to [0, 1]
+  # Transpose to match Python (histogram2d returns [x_bins, y_bins], we need [y_bins, x_bins])
+  bin_density <- t(bin_density)
   
-  # Compute DREVI if requested
-  if (return_drevi) {
-    # DREVI = variance explained
-    # Compute E[Y|X] and Var[Y|X]
-    y_mids <- (y_breaks[-1] + y_breaks[-(n_bins + 1)]) / 2
-    
-    e_y_given_x <- rowSums(cond_density * matrix(y_mids, nrow = n_bins, 
-                                                  ncol = n_bins, byrow = TRUE))
-    var_y_given_x <- rowSums(cond_density * 
-                               (matrix(y_mids, nrow = n_bins, ncol = n_bins, 
-                                       byrow = TRUE) - e_y_given_x)^2)
-    
-    # Expected conditional variance
-    e_var_y_given_x <- sum(p_x * var_y_given_x)
-    
-    # Total variance of Y
-    var_y <- var(y_norm)
-    
-    # DREVI = 1 - E[Var(Y|X)] / Var(Y)
-    drevi <- 1 - e_var_y_given_x / (var_y + .Machine$double.eps)
-    drevi <- max(0, min(1, drevi))
+  # Normalize so total sums to 1
+  total_density <- sum(bin_density)
+  if (total_density > 0) {
+    bin_density <- bin_density / total_density
   }
+  
+  # Step 6: Compute DREVI (conditional probability)
+  # Normalize columns (each column sums to 1)
+  col_sums <- colSums(bin_density)
+  col_sums[col_sums == 0] <- 1  # Avoid division by zero
+  drevi <- sweep(bin_density, 2, col_sums, "/")
+  
+  # Step 7: Compute conditional entropies for each column
+  # H(Y|X=x) = -sum(p * log2(p))
+  cond_entropies <- apply(drevi, 2, function(col) {
+    col <- col[col > 0]
+    if (length(col) == 0) return(0)
+    -sum(col * log2(col))
+  })
+  
+  # Step 8: Compute marginal entropy of Y
+  p_y <- rowSums(bin_density)  # Marginal distribution of Y
+  p_y <- p_y[p_y > 0]
+  marginal_entropy <- -sum(p_y * log2(p_y))
+  
+  # Step 9: Compute mutual information (not normalized)
+  # I(X;Y) = H(Y) - H(Y|X)
+  # Conditional entropy = weighted average of column entropies
+  p_x <- colSums(bin_density)  # Distribution of X (column sums)
+  conditional_entropy <- sum(cond_entropies * p_x)
+  mutual_info <- marginal_entropy - conditional_entropy
+  
+  # Step 10: Compute DREMI (normalized)
+  # Use the normalized marginal entropy from DREVI
+  # Note: scipy.stats.entropy normalizes the input, so we need to do the same
+  p_y_norm <- rowSums(drevi)
+  p_y_norm_sum <- sum(p_y_norm)
+  if (p_y_norm_sum > 0) {
+    p_y_norm <- p_y_norm / p_y_norm_sum  # Normalize to sum to 1
+  }
+  p_y_norm <- p_y_norm[p_y_norm > 0]
+  marginal_entropy_norm <- -sum(p_y_norm * log2(p_y_norm))
+  
+  # Mean DREVI column for conditional entropy normalization
+  # In Python: cond_sums_norm = np.mean(drevi) 
+  cond_sums_norm <- mean(drevi)
+  conditional_entropy_norm <- sum(cond_entropies * cond_sums_norm)
+  
+  dremi <- marginal_entropy_norm - conditional_entropy_norm
+  
+  # Clamp to reasonable range
+  dremi <- max(0, dremi)
   
   # Plot if requested
   if (plot) {
-    plot_dremi(x, y, joint_density, dremi, 
-               return_drevi && exists("drevi"), 
-               if (return_drevi) drevi else NULL)
+    plot_knnDREMI(dremi, mutual_info, x, y, n_bins, n_mesh, 
+                  density, bin_density, drevi, ...)
   }
   
-
   if (return_drevi) {
     return(list(dremi = dremi, drevi = drevi))
   } else {
@@ -195,69 +230,139 @@ knnDREMI <- function(x, y,
   }
 }
 
-#' Plot DREMI diagnostic
-#' @param x X values
-#' @param y Y values  
-#' @param joint_density Joint density matrix
+#' Plot kNN-DREMI diagnostic
+#'
+#' @description Creates diagnostic plots for kNN-DREMI like those seen in
+#'   Fig 5C/D of van Dijk et al. 2018.
+#'
 #' @param dremi DREMI value
-#' @param show_drevi Show DREVI
-#' @param drevi DREVI value
+#' @param mutual_info Mutual information value
+#' @param x Z-scored X values
+#' @param y Z-scored Y values
+#' @param n_bins Number of bins
+#' @param n_mesh Mesh density
+#' @param density Mesh point densities
+#' @param bin_density Binned density matrix
+#' @param drevi DREVI conditional probability matrix
+#' @param figsize Figure size (ignored in R)
+#' @param filename File to save plot (optional)
+#' @param xlabel X-axis label
+#' @param ylabel Y-axis label
+#' @param ... Additional arguments
+#'
 #' @keywords internal
-plot_dremi <- function(x, y, joint_density, dremi, show_drevi = FALSE, drevi = NULL) {
-  # Avoid R CMD check note for ggplot aes variables
-  density <- NULL
+plot_knnDREMI <- function(dremi, mutual_info, x, y, n_bins, n_mesh,
+                          density, bin_density, drevi,
+                          figsize = c(12, 3.5),
+                          filename = NULL,
+                          xlabel = "Feature 1",
+                          ylabel = "Feature 2",
+                          ...) {
   
-  if (requireNamespace("ggplot2", quietly = TRUE)) {
-    # Create data frame for scatter
-    df <- data.frame(x = x, y = y)
+  if (requireNamespace("ggplot2", quietly = TRUE) && 
+      requireNamespace("gridExtra", quietly = TRUE)) {
     
-    p1 <- ggplot2::ggplot(df, ggplot2::aes(x = x, y = y)) +
-      ggplot2::geom_point(alpha = 0.3, size = 0.5) +
-      ggplot2::labs(
-        title = sprintf("kNN-DREMI = %.3f%s", dremi,
-                        if (show_drevi) sprintf(", DREVI = %.3f", drevi) else ""),
-        x = "Gene X",
-        y = "Gene Y"
-      ) +
-      ggplot2::theme_minimal()
+    # Plot 1: Raw data
+    df1 <- data.frame(x = x, y = y)
+    p1 <- ggplot2::ggplot(df1, ggplot2::aes(x = .data$x, y = .data$y)) +
+      ggplot2::geom_point(size = 0.5, color = "black") +
+      ggplot2::labs(title = "Input\ndata", x = xlabel, y = ylabel) +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        axis.text = ggplot2::element_blank(),
+        axis.ticks = ggplot2::element_blank()
+      )
     
-    # Heatmap of joint density
-    df_heat <- expand.grid(
-      x = seq_len(nrow(joint_density)),
-      y = seq_len(ncol(joint_density))
-    )
-    df_heat$density <- as.vector(joint_density)
+    # Plot 2: kNN Density (mesh grid)
+    n_mesh_points <- ((n_mesh + 1) * n_bins) + 1
+    dens_mat <- matrix(log(density + 1e-10), nrow = n_mesh_points, ncol = n_mesh_points)
+    df2 <- expand.grid(x = seq_len(n_mesh_points), y = seq_len(n_mesh_points))
+    df2$density <- as.vector(dens_mat)
     
-    p2 <- ggplot2::ggplot(df_heat, ggplot2::aes(x = x, y = y, fill = density)) +
+    p2 <- ggplot2::ggplot(df2, ggplot2::aes(x = .data$x, y = .data$y, fill = .data$density)) +
       ggplot2::geom_tile() +
-      ggplot2::scale_fill_viridis_c() +
-      ggplot2::labs(
-        title = "Joint Density P(X, Y)",
-        x = "X bins",
-        y = "Y bins"
-      ) +
-      ggplot2::theme_minimal()
+      ggplot2::scale_fill_viridis_c(option = "inferno") +
+      ggplot2::labs(title = "kNN\nDensity", x = xlabel, y = "") +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        axis.text = ggplot2::element_blank(),
+        axis.ticks = ggplot2::element_blank(),
+        legend.position = "none"
+      )
     
-    # Try to arrange side by side
-    if (requireNamespace("gridExtra", quietly = TRUE)) {
-      gridExtra::grid.arrange(p1, p2, ncol = 2)
-    } else {
-      print(p1)
-      print(p2)
+    # Plot 3: Joint probability
+    df3 <- expand.grid(x = seq_len(n_bins), y = seq_len(n_bins))
+    df3$density <- as.vector(bin_density)
+    
+    p3 <- ggplot2::ggplot(df3, ggplot2::aes(x = .data$x, y = .data$y, fill = .data$density)) +
+      ggplot2::geom_tile() +
+      ggplot2::scale_fill_viridis_c(option = "inferno") +
+      ggplot2::labs(
+        title = sprintf("Joint Prob.\nMI=%.2f", mutual_info),
+        x = xlabel, y = ""
+      ) +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        axis.text = ggplot2::element_blank(),
+        axis.ticks = ggplot2::element_blank(),
+        legend.position = "none"
+      )
+    
+    # Plot 4: Conditional probability (DREVI)
+    df4 <- expand.grid(x = seq_len(n_bins), y = seq_len(n_bins))
+    df4$density <- as.vector(drevi)
+    
+    p4 <- ggplot2::ggplot(df4, ggplot2::aes(x = .data$x, y = .data$y, fill = .data$density)) +
+      ggplot2::geom_tile() +
+      ggplot2::scale_fill_viridis_c(option = "inferno") +
+      ggplot2::labs(
+        title = sprintf("Conditional Prob.\nDREMI=%.2f", dremi),
+        x = xlabel, y = ""
+      ) +
+      ggplot2::theme_minimal() +
+      ggplot2::theme(
+        axis.text = ggplot2::element_blank(),
+        axis.ticks = ggplot2::element_blank(),
+        legend.position = "none"
+      )
+    
+    # Combine plots
+    combined <- gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 4)
+    
+    if (!is.null(filename)) {
+      ggplot2::ggsave(filename, combined, width = figsize[1], height = figsize[2])
     }
+    
   } else {
     # Base R fallback
-    par(mfrow = c(1, 2))
+    old_par <- par(mfrow = c(1, 4), mar = c(3, 3, 3, 1))
+    on.exit(par(old_par))
     
-    plot(x, y, pch = 16, col = adjustcolor("steelblue", 0.3),
-         main = sprintf("kNN-DREMI = %.3f", dremi),
-         xlab = "Gene X", ylab = "Gene Y")
+    # Plot 1: Raw data
+    plot(x, y, pch = 16, cex = 0.3, col = "black",
+         main = "Input\ndata", xlab = xlabel, ylab = ylabel,
+         xaxt = "n", yaxt = "n")
     
-    image(joint_density, main = "Joint Density", 
-          xlab = "X bins", ylab = "Y bins",
-          col = hcl.colors(50, "viridis"))
+    # Plot 2: kNN Density
+    n_mesh_points <- ((n_mesh + 1) * n_bins) + 1
+    dens_mat <- matrix(log(density + 1e-10), nrow = n_mesh_points, ncol = n_mesh_points)
+    image(dens_mat, main = "kNN\nDensity", xlab = xlabel, ylab = "",
+          col = hcl.colors(50, "Inferno"), xaxt = "n", yaxt = "n")
     
-    par(mfrow = c(1, 1))
+    # Plot 3: Joint probability
+    image(bin_density, main = sprintf("Joint Prob.\nMI=%.2f", mutual_info),
+          xlab = xlabel, ylab = "",
+          col = hcl.colors(50, "Inferno"), xaxt = "n", yaxt = "n")
+    
+    # Plot 4: Conditional probability
+    image(drevi, main = sprintf("Conditional Prob.\nDREMI=%.2f", dremi),
+          xlab = xlabel, ylab = "",
+          col = hcl.colors(50, "Inferno"), xaxt = "n", yaxt = "n")
+    
+    if (!is.null(filename)) {
+      dev.copy(png, filename, width = figsize[1] * 100, height = figsize[2] * 100)
+      dev.off()
+    }
   }
 }
 

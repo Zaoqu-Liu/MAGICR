@@ -12,7 +12,8 @@ knnDREMI(
   n_mesh = 3,
   n_jobs = 1,
   plot = FALSE,
-  return_drevi = FALSE
+  return_drevi = FALSE,
+  ...
 )
 }
 \arguments{
@@ -24,29 +25,35 @@ knnDREMI(
 
 \item{n_bins}{Integer. Number of bins for density resampling. Default is 20.}
 
-\item{n_mesh}{Integer. Mesh points per bin. Default is 3.}
+\item{n_mesh}{Integer. Mesh density within bins. Default is 3.}
 
-\item{n_jobs}{Integer. Parallel workers. Default is 1.}
+\item{n_jobs}{Integer. Number of parallel workers (not used in R). Default is 1.}
 
 \item{plot}{Logical. Create diagnostic plots. Default is FALSE.}
 
-\item{return_drevi}{Logical. Also return DREVI values. Default is FALSE.}
+\item{return_drevi}{Logical. Also return DREVI density matrix. Default is FALSE.}
+
+\item{...}{Additional arguments passed to plot function.}
 }
 \value{
 If return_drevi is FALSE, returns the DREMI value (numeric).
-  If return_drevi is TRUE, returns a list with dremi and drevi values.
+  If return_drevi is TRUE, returns a list with dremi and drevi (density matrix).
 }
 \description{
 Calculates k-Nearest Neighbor conditional Density Resampled 
   Estimate of Mutual Information as defined in van Dijk et al, 2018.
 }
 \details{
-kNN-DREMI estimates the mutual information I(Y|X) using:
-  1. Build kNN graph on X
-  2. Resample Y based on local densities
-  3. Compute mutual information on resampled data
+kNN-DREMI is an adaptation of DREMI (Krishnaswamy et al. 2014) for
+  single cell RNA-sequencing data. DREMI captures the functional relationship
+  between two genes across their entire dynamic range. The key change to
+  kNN-DREMI is the replacement of the heat diffusion-based kernel-density
+  estimator by a k-nearest neighbor-based density estimator.
   
-  Note: kNN-DREMI is asymmetric - it estimates I(Y|X), not I(X|Y).
+  Note: kNN-DREMI, like Mutual Information and DREMI, is not symmetric.
+  Here we are estimating I(Y|X).
+  
+  This implementation follows exactly the scprep Python implementation.
 }
 \examples{
 \dontrun{
@@ -65,4 +72,7 @@ dremi <- knnDREMI(imputed[, "GeneA"], imputed[, "GeneB"], plot = TRUE)
 van Dijk, D., et al. (2018). Recovering gene interactions from single-cell
 data using data diffusion. Cell, 174(3), 716-729.
 \doi{10.1016/j.cell.2018.05.061}
+
+Krishnaswamy, S., et al. (2014). Conditional density-based analysis of T cell
+signaling in single-cell data. Science, 346(6213), 1250689.
 }
