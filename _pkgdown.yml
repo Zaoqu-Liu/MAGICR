@@ -1,0 +1,122 @@
+url: https://zaoqu-liu.github.io/MAGICR
+
+template:
+  bootstrap: 5
+  bootswatch: flatly
+  bslib:
+    primary: "#0d6efd"
+    border-radius: 0.5rem
+    btn-border-radius: 0.25rem
+
+home:
+  title: MAGICR - Markov Affinity-based Graph Imputation of Cells
+  description: >
+    Native R implementation of MAGIC for denoising and imputation of 
+    single-cell RNA sequencing data using diffusion geometry.
+
+authors:
+  Zaoqu Liu:
+    href: https://github.com/Zaoqu-Liu
+
+navbar:
+  structure:
+    left:  [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    intro:
+      text: Get Started
+      href: articles/MAGICR-introduction.html
+    articles:
+      text: Articles
+      menu:
+        - text: "Introduction to MAGICR"
+          href: articles/MAGICR-introduction.html
+        - text: "Algorithm Theory"
+          href: articles/algorithm-theory.html
+        - text: "Seurat Integration"
+          href: articles/seurat-integration.html
+        - text: "Performance Benchmarking"
+          href: articles/benchmarking.html
+    github:
+      icon: fab fa-github
+      href: https://github.com/Zaoqu-Liu/MAGICR
+      aria-label: GitHub
+
+reference:
+  - title: "Main Functions"
+    desc: "Core MAGIC functionality"
+    contents:
+      - magic
+      - magic_impute
+      - magic_optimal_t
+      
+  - title: "Diffusion Operator"
+    desc: "Functions for building the diffusion operator"
+    contents:
+      - build_diffusion_operator
+      - magic_knn_graph
+      - compute_alpha_kernel
+      - magic_diffusion_operator
+      - kernel
+      - diffusion
+      
+  - title: "Preprocessing"
+    desc: "Data preprocessing utilities"
+    contents:
+      - library_size_normalize
+      - sqrt_normalize
+      - log_transform
+      - preprocessing
+      
+  - title: "Utilities"
+    desc: "Helper functions"
+    contents:
+      - procrustes_disparity
+      - matrix_power
+      - plot_disparity
+      - validate_data
+      - has_cpp_acceleration
+      - magicr_config
+      - set_magicr_options
+      
+  - title: "Seurat Integration"
+    desc: "Functions for Seurat/SCE objects"
+    contents:
+      - seurat
+      - GetMAGICData
+      
+  - title: "S3 Methods"
+    desc: "Methods for magic objects"
+    contents:
+      - starts_with("as.")
+      - starts_with("print")
+      - starts_with("summary")
+      - "`[.magic`"
+      
+  - title: "Data"
+    desc: "Example datasets"
+    contents:
+      - magic_testdata
+
+articles:
+  - title: "Getting Started"
+    navbar: ~
+    contents:
+      - MAGICR-introduction
+      
+  - title: "Theory & Methods"
+    contents:
+      - algorithm-theory
+      
+  - title: "Integration"
+    contents:
+      - seurat-integration
+      
+  - title: "Performance"
+    contents:
+      - benchmarking
+
+footer:
+  structure:
+    left: developed_by
+    right: built_with

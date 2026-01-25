@@ -8,6 +8,9 @@ Authors@R: c(
            comment = c(ORCID = "0000-0002-0452-742X")),
     person("Krishnaswamy Lab", role = "cph",
            comment = "Original MAGIC algorithm"))
+Author: Zaoqu Liu [aut, cre] (<https://orcid.org/0000-0002-0452-742X>),
+    Krishnaswamy Lab [cph] (Original MAGIC algorithm)
+Maintainer: Zaoqu Liu <liuzaoqu@163.com>
 Description: Native R implementation of MAGIC (Markov Affinity-based Graph 
     Imputation of Cells) for denoising and imputation of single-cell RNA 
     sequencing data. MAGIC uses diffusion geometry to denoise single-cell data 
@@ -16,7 +19,7 @@ Description: Native R implementation of MAGIC (Markov Affinity-based Graph
     implementation with optional C++ acceleration, parallel computing support,
     and seamless integration with Seurat (v4 and v5) objects.
 License: GPL-2
-URL: https://github.com/Zaoqu-Liu/MAGICR
+URL: https://zaoqu-liu.github.io/MAGICR, https://github.com/Zaoqu-Liu/MAGICR
 BugReports: https://github.com/Zaoqu-Liu/MAGICR/issues
 Encoding: UTF-8
 LazyData: true

@@ -1,0 +1,154 @@
+---
+title: "Introduction to MAGICR"
+author: "Zaoqu Liu"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to MAGICR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Overview
+
+**MAGICR** is a native R implementation of the MAGIC (**M**arkov **A**ffinity-based **G**raph **I**mputation of **C**ells) algorithm for denoising and imputation of single-cell RNA sequencing (scRNA-seq) data.
+
+Single-cell RNA sequencing has revolutionized our understanding of cellular heterogeneity, but technical limitations result in sparse count matrices with prevalent dropout events—where expressed genes appear as zeros due to sampling inefficiency. MAGIC addresses this challenge by leveraging the underlying manifold structure of the data through diffusion geometry.
+
+## Installation
+
+```{r eval=FALSE}
+# From R-universe (recommended)
+install.packages("MAGICR", repos = "https://zaoqu-liu.r-universe.dev")
+
+# From GitHub
+remotes::install_github("Zaoqu-Liu/MAGICR")
+```
+
+## Quick Start
+
+```{r}
+library(MAGICR)
+
+# Load example data
+data(magic_testdata)
+
+# Check data dimensions
+dim(magic_testdata)
+
+# Preview the data
+magic_testdata[1:5, 1:5]
+```
+
+### Running MAGIC
+
+```{r}
+# Run MAGIC with default parameters
+result <- magic(magic_testdata, t = 3)
+
+# View result summary
+print(result)
+```
+
+### Accessing Results
+
+```{r}
+# Get imputed matrix
+imputed_data <- as.matrix(result)
+
+# Compare original vs imputed
+cat("Original data range:", range(magic_testdata), "\n")
+cat("Imputed data range:", range(imputed_data), "\n")
+```
+
+## Visualizing Results
+
+### Before vs After Imputation
+
+```{r fig.width=8, fig.height=4}
+par(mfrow = c(1, 2))
+
+# Original data distribution
+hist(as.vector(as.matrix(magic_testdata)), 
+     breaks = 50, 
+     main = "Original Data Distribution",
+     xlab = "Expression", 
+     col = "#3498db", 
+     border = "white")
+
+# Imputed data distribution
+hist(as.vector(imputed_data), 
+     breaks = 50, 
+     main = "Imputed Data Distribution",
+     xlab = "Expression", 
+     col = "#e74c3c", 
+     border = "white")
+```
+
+### Gene-Gene Relationships
+
+One of MAGIC's key benefits is recovering gene-gene relationships that are obscured by dropout noise.
+
+```{r fig.width=6, fig.height=6}
+# Select two genes
+gene1 <- colnames(magic_testdata)[1]
+gene2 <- colnames(magic_testdata)[2]
+
+par(mfrow = c(1, 2))
+
+# Original
+plot(magic_testdata[, gene1], magic_testdata[, gene2],
+     pch = 16, col = adjustcolor("#3498db", 0.5),
+     xlab = gene1, ylab = gene2,
+     main = "Original")
+
+# Imputed
+plot(imputed_data[, gene1], imputed_data[, gene2],
+     pch = 16, col = adjustcolor("#e74c3c", 0.5),
+     xlab = gene1, ylab = gene2,
+     main = "After MAGIC")
+```
+
+## Parameter Tuning
+
+### Diffusion Time (t)
+
+The diffusion time `t` controls the degree of smoothing:
+
+- **Small t (1-3)**: Less smoothing, preserves more local structure
+- **Large t (>5)**: More smoothing, may over-smooth rare populations
+- **"auto"**: Automatically selects optimal t using Procrustes analysis
+
+```{r}
+# Automatic t selection
+result_auto <- magic(magic_testdata, t = "auto", t_max = 10)
+cat("Automatically selected t:", result_auto$params$t, "\n")
+```
+
+### Key Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `knn` | 5 | Neighbors for bandwidth estimation |
+| `knn_max` | 15 | Maximum neighbors for graph |
+| `decay` | 1 | Kernel sharpness (α parameter) |
+| `t` | 3 | Diffusion time |
+| `npca` | 100 | PCA components for distances |
+
+## Session Info
+
+```{r}
+sessionInfo()
+```

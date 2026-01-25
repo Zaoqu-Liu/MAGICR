@@ -1,0 +1,311 @@
+---
+title: "Performance Benchmarking"
+author: "Zaoqu Liu"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Performance Benchmarking}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+## Overview
+
+This vignette benchmarks MAGICR performance across different data sizes and parameter configurations, helping users optimize their analysis workflow.
+
+## Setup
+
+```{r}
+library(MAGICR)
+library(Matrix)
+
+# Helper function for timing
+benchmark <- function(expr, name = "Operation") {
+  start <- Sys.time()
+  result <- eval(expr)
+  elapsed <- as.numeric(difftime(Sys.time(), start, units = "secs"))
+  cat(sprintf("%s: %.2f seconds\n", name, elapsed))
+  invisible(list(result = result, time = elapsed))
+}
+```
+
+## Data Size Impact
+
+### Generating Test Data
+
+```{r}
+# Generate sparse test matrices of varying sizes
+generate_test_data <- function(n_cells, n_genes, sparsity = 0.9) {
+  set.seed(42)
+  data <- matrix(rpois(n_cells * n_genes, lambda = 2), 
+                 nrow = n_cells, ncol = n_genes)
+  data[runif(length(data)) < sparsity] <- 0
+  colnames(data) <- paste0("Gene", seq_len(n_genes))
+  rownames(data) <- paste0("Cell", seq_len(n_cells))
+  data
+}
+
+# Test datasets
+sizes <- list(
+  small = c(100, 500),
+  medium = c(500, 1000),
+  large = c(1000, 2000)
+)
+```
+
+### Benchmarking Different Sizes
+
+```{r}
+results <- list()
+
+for (size_name in names(sizes)) {
+  n_cells <- sizes[[size_name]][1]
+  n_genes <- sizes[[size_name]][2]
+  
+  cat(sprintf("\n=== %s dataset: %d cells x %d genes ===\n", 
+              size_name, n_cells, n_genes))
+  
+  test_data <- generate_test_data(n_cells, n_genes)
+  
+  # Benchmark
+  bench <- benchmark(
+    magic(test_data, t = 3, verbose = FALSE),
+    name = sprintf("MAGIC (%s)", size_name)
+  )
+  
+  results[[size_name]] <- bench$time
+}
+```
+
+### Visualization
+
+```{r fig.width=6, fig.height=4}
+# Plot timing results
+barplot(unlist(results), 
+        names.arg = names(results),
+        col = c("#3498db", "#e74c3c", "#2ecc71"),
+        main = "MAGIC Runtime by Dataset Size",
+        ylab = "Time (seconds)",
+        xlab = "Dataset Size")
+```
+
+## Solver Comparison
+
+### Exact vs Approximate
+
+```{r}
+# Medium-sized test data
+test_data <- generate_test_data(500, 1000)
+
+cat("=== Solver Comparison ===\n\n")
+
+# Exact solver
+exact_bench <- benchmark(
+  magic(test_data, t = 3, solver = "exact", verbose = FALSE),
+  name = "Exact solver"
+)
+
+# Approximate solver
+approx_bench <- benchmark(
+  magic(test_data, t = 3, solver = "approximate", npca = 50, verbose = FALSE),
+  name = "Approximate solver"
+)
+
+cat(sprintf("\nSpeedup: %.1fx\n", exact_bench$time / approx_bench$time))
+```
+
+### Accuracy Comparison
+
+```{r fig.width=8, fig.height=4}
+# Compare results
+exact_result <- as.matrix(exact_bench$result)
+approx_result <- as.matrix(approx_bench$result)
+
+# Correlation between methods
+cor_val <- cor(as.vector(exact_result), as.vector(approx_result))
+cat(sprintf("Correlation between exact and approximate: %.4f\n", cor_val))
+
+# Visualization
+par(mfrow = c(1, 2))
+
+# Scatter plot
+plot(as.vector(exact_result)[1:5000], 
+     as.vector(approx_result)[1:5000],
+     pch = 16, col = adjustcolor("#3498db", 0.3),
+     xlab = "Exact Solver", ylab = "Approximate Solver",
+     main = sprintf("Solver Agreement (r = %.3f)", cor_val))
+abline(0, 1, col = "red", lwd = 2)
+
+# Difference distribution
+diff <- exact_result - approx_result
+hist(as.vector(diff), breaks = 50, 
+     main = "Difference Distribution",
+     xlab = "Exact - Approximate",
+     col = "#e74c3c", border = "white")
+abline(v = 0, col = "black", lwd = 2, lty = 2)
+```
+
+## Parameter Impact
+
+### Effect of t (Diffusion Time)
+
+```{r fig.width=8, fig.height=4}
+test_data <- generate_test_data(200, 500)
+
+t_values <- c(1, 2, 3, 5, 10)
+t_times <- numeric(length(t_values))
+
+for (i in seq_along(t_values)) {
+  start <- Sys.time()
+  magic(test_data, t = t_values[i], verbose = FALSE)
+  t_times[i] <- as.numeric(difftime(Sys.time(), start, units = "secs"))
+}
+
+par(mfrow = c(1, 2))
+
+# Runtime
+plot(t_values, t_times, type = "b", pch = 16, col = "#3498db",
+     xlab = "Diffusion Time (t)", ylab = "Runtime (seconds)",
+     main = "Runtime vs Diffusion Time")
+
+# Relative increase
+plot(t_values, t_times / t_times[1], type = "b", pch = 16, col = "#e74c3c",
+     xlab = "Diffusion Time (t)", ylab = "Relative Runtime",
+     main = "Relative Runtime Increase")
+```
+
+### Effect of knn
+
+```{r fig.width=6, fig.height=4}
+knn_values <- c(3, 5, 10, 15, 20)
+knn_times <- numeric(length(knn_values))
+
+for (i in seq_along(knn_values)) {
+  start <- Sys.time()
+  magic(test_data, t = 3, knn = knn_values[i], verbose = FALSE)
+  knn_times[i] <- as.numeric(difftime(Sys.time(), start, units = "secs"))
+}
+
+plot(knn_values, knn_times, type = "b", pch = 16, col = "#2ecc71",
+     xlab = "k-Nearest Neighbors", ylab = "Runtime (seconds)",
+     main = "Runtime vs knn Parameter")
+```
+
+### Effect of npca
+
+```{r fig.width=6, fig.height=4}
+npca_values <- c(20, 50, 100, 150)
+npca_times <- numeric(length(npca_values))
+
+for (i in seq_along(npca_values)) {
+  start <- Sys.time()
+  magic(test_data, t = 3, npca = npca_values[i], verbose = FALSE)
+  npca_times[i] <- as.numeric(difftime(Sys.time(), start, units = "secs"))
+}
+
+plot(npca_values, npca_times, type = "b", pch = 16, col = "#9b59b6",
+     xlab = "Number of PCA Components", ylab = "Runtime (seconds)",
+     main = "Runtime vs npca Parameter")
+```
+
+## Memory Usage
+
+### Sparse vs Dense Input
+
+```{r}
+# Create sparse and dense versions
+test_dense <- generate_test_data(300, 800)
+test_sparse <- Matrix::Matrix(test_dense, sparse = TRUE)
+
+cat("=== Memory Comparison ===\n")
+cat(sprintf("Dense matrix size: %.2f MB\n", 
+            object.size(test_dense) / 1024^2))
+cat(sprintf("Sparse matrix size: %.2f MB\n", 
+            object.size(test_sparse) / 1024^2))
+cat(sprintf("Compression ratio: %.1fx\n\n",
+            as.numeric(object.size(test_dense)) / 
+            as.numeric(object.size(test_sparse))))
+
+# Benchmark both
+dense_bench <- benchmark(
+  magic(test_dense, t = 3, verbose = FALSE),
+  name = "Dense input"
+)
+
+sparse_bench <- benchmark(
+  magic(test_sparse, t = 3, verbose = FALSE),
+  name = "Sparse input"
+)
+```
+
+## Recommendations
+
+Based on benchmarking results:
+
+### Small Datasets (<1,000 cells)
+
+```{r eval=FALSE}
+# Use exact solver with default parameters
+result <- magic(data, t = 3, solver = "exact")
+```
+
+### Medium Datasets (1,000-10,000 cells)
+
+```{r eval=FALSE}
+# Consider approximate solver
+result <- magic(data, t = 3, solver = "approximate", npca = 100)
+```
+
+### Large Datasets (>10,000 cells)
+
+```{r eval=FALSE}
+# Use approximate solver with reduced PCA
+# Enable parallel processing
+library(future)
+plan(multisession, workers = 4)
+
+result <- magic(data, 
+                t = 3, 
+                solver = "approximate", 
+                npca = 50,
+                knn = 5)
+```
+
+### Memory-Constrained Environments
+
+```{r eval=FALSE}
+# Use sparse matrices
+# Reduce npca
+# Impute only genes of interest
+result <- magic(data,
+                genes = important_genes,
+                solver = "approximate",
+                npca = 30)
+```
+
+## Summary Table
+
+| Dataset Size | Recommended Solver | npca | Expected Time |
+|-------------|-------------------|------|---------------|
+| <500 cells | exact | 100 | <5 sec |
+| 500-2000 cells | exact/approximate | 100 | 5-30 sec |
+| 2000-10000 cells | approximate | 50-100 | 30 sec - 5 min |
+| >10000 cells | approximate + parallel | 30-50 | 5-30 min |
+
+## Session Info
+
+```{r}
+sessionInfo()
+```

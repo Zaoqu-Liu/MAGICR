@@ -1,4 +1,4 @@
-# MAGICR <img src="man/figures/logo.png" align="right" height="139" alt="" />
+# MAGICR
 
 <!-- badges: start -->
 [![R-universe](https://zaoqu-liu.r-universe.dev/badges/MAGICR)](https://zaoqu-liu.r-universe.dev/MAGICR)
@@ -6,6 +6,8 @@
 [![CRAN status](https://www.r-pkg.org/badges/version/MAGICR)](https://CRAN.R-project.org/package=MAGICR)
 [![License: GPL-2](https://img.shields.io/badge/License-GPL--2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 <!-- badges: end -->
+
+📖 **Documentation**: <https://zaoqu-liu.github.io/MAGICR>
 
 ## Overview
 

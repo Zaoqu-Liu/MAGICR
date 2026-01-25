@@ -53,7 +53,11 @@ get_seurat_data <- function(object, assay = NULL, layer = "data") {
   # Try v5 API first (LayerData)
   if (version >= 5) {
     tryCatch({
-      data <- SeuratObject::LayerData(object, assay = assay, layer = layer)
+      # Check if LayerData function exists
+      if (exists("LayerData", where = asNamespace("SeuratObject"), mode = "function")) {
+        layer_data_fn <- get("LayerData", envir = asNamespace("SeuratObject"))
+        data <- layer_data_fn(object, assay = assay, layer = layer)
+      }
     }, error = function(e) {
       # LayerData failed, will try fallback
     })
@@ -101,8 +105,12 @@ set_seurat_data <- function(object, data, assay, layer = "data") {
   # Try v5 API first
   if (version >= 5) {
     tryCatch({
-      SeuratObject::LayerData(object, assay = assay, layer = layer) <- data
-      success <- TRUE
+      # Check if LayerData<- function exists
+      if (exists("LayerData<-", where = asNamespace("SeuratObject"), mode = "function")) {
+        layer_data_assign <- get("LayerData<-", envir = asNamespace("SeuratObject"))
+        object <- layer_data_assign(object, assay = assay, layer = layer, value = data)
+        success <- TRUE
+      }
     }, error = function(e) {
       # LayerData assignment failed
     })
@@ -307,7 +315,11 @@ magic.Seurat <- function(data,
   # Try CreateAssay5Object for v5 Assay5 class
   if (is.null(new_assay) && existing_assay_class == "Assay5") {
     tryCatch({
-      new_assay <- SeuratObject::CreateAssay5Object(data = imputed_data)
+      # Check if CreateAssay5Object function exists
+      if (exists("CreateAssay5Object", where = asNamespace("SeuratObject"), mode = "function")) {
+        create_assay5_fn <- get("CreateAssay5Object", envir = asNamespace("SeuratObject"))
+        new_assay <- create_assay5_fn(data = imputed_data)
+      }
     }, error = function(e) {
       # CreateAssay5Object failed
     })
