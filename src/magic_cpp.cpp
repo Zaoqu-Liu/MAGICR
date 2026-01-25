@@ -1,8 +1,7 @@
 // MAGICR - C++ acceleration functions
 // Author: Zaoqu Liu
-// This file contains optimized C++ implementations of performance-critical
-// operations for the MAGICR package.
-// Note: No OpenMP used to avoid conflicts on different systems.
+// C++ implementations of core MAGIC operations.
+// Note: No OpenMP to avoid platform-specific conflicts.
 
 #include <RcppArmadillo.h>
 // [[Rcpp::depends(RcppArmadillo)]]
@@ -83,10 +82,10 @@ arma::mat cpp_alpha_kernel(const arma::mat& distances,
   return K;
 }
 
-//' Fast Sparse Matrix-Dense Matrix Multiplication
+//' Sparse Matrix-Dense Matrix Multiplication
 //' 
-//' Optimized multiplication of sparse diffusion operator with dense data matrix.
-//' This is the core operation in MAGIC imputation.
+//' Multiplies sparse diffusion operator with dense data matrix.
+//' Core operation in MAGIC imputation.
 //' @param P_i Row indices of sparse matrix (0-indexed)
 //' @param P_p Column pointers of sparse matrix (0-indexed)
 //' @param P_x Values of sparse matrix
@@ -257,10 +256,9 @@ arma::vec cpp_get_bandwidth(const arma::mat& distances, int k) {
   return epsilon;
 }
 
-//' Dense Matrix Imputation Step
+//' Dense Matrix Diffusion Step
 //' 
 //' Performs one step of diffusion: X_new = P %*% X
-//' Optimized for dense diffusion operator.
 //' @param P Diffusion operator (dense)
 //' @param X Data matrix
 //' @return Diffused data
