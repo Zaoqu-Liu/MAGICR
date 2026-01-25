@@ -1,102 +1,63 @@
 #' @title MAGIC: Markov Affinity-based Graph Imputation of Cells
-#' @description Main function for running MAGIC on single-cell data.
+#' @description Main function for MAGIC imputation of single-cell data.
 #' @name magic
 NULL
 
-#' Run MAGIC Imputation
+#' Run MAGIC
 #'
 #' @description Performs MAGIC (Markov Affinity-based Graph Imputation of Cells)
 #'   for denoising and imputation of single-cell data.
 #'
-#' @param data Input data. Can be a matrix, sparse Matrix (dgCMatrix), data.frame,
-#'   Seurat object, or SingleCellExperiment object.
-#' @param genes Character vector of gene names, integer vector of gene indices,
-#'   or one of the special values "all_genes" or "pca_only". If NULL, returns
-#'   all genes. Default is NULL.
-#' @param knn Integer. Number of nearest neighbors for kernel bandwidth.
-#'   Default is 5.
-#' @param knn_max Integer or NULL. Maximum number of neighbors to consider.
-#'   If NULL, defaults to 3 * knn. Default is NULL.
-#' @param decay Numeric or NULL. Alpha parameter for kernel decay rate.
-#'   Higher values create sharper kernels. If NULL, uses unweighted kNN.
-#'   Default is 1.
-#' @param t Integer or "auto". Number of diffusion steps. If "auto", optimal t
-#'   is selected automatically using Procrustes analysis. Default is 3.
-#' @param npca Integer or NULL. Number of principal components for distance
-#'   calculation. If NULL or greater than number of genes, PCA is not performed.
-#'   Default is 100.
-#' @param solver Character. Either "exact" (compute on all genes) or
-#'   "approximate" (compute in PCA space, then project back). The "approximate"
-#'   solver is faster but may return negative values. Default is "exact".
-#' @param init A previous MAGIC result object. If provided, reuses the
-#'   diffusion operator from that run. Default is NULL.
-#' @param t_max Integer. Maximum t to test when t = "auto". Default is 20.
-#' @param distance Character. Distance metric for kNN. One of "euclidean",
-#'   "cosine", "manhattan", or "correlation". Default is "euclidean".
-#' @param n_jobs Integer. Number of parallel workers. Use -1 for all available.
-#'   Default is 1 (no parallelization).
-#' @param seed Integer or NULL. Random seed for reproducibility. Default is NULL.
-#' @param verbose Logical or integer. Verbosity level. TRUE or 1 for basic
-#'   messages, 2 for detailed messages, 0 or FALSE for silent. Default is TRUE.
-#' @param ... Additional arguments (currently unused).
+#' @param data Input data. Matrix, sparse Matrix, data.frame, Seurat, or
+#'   SingleCellExperiment object.
+#' @param genes Gene names, indices, "all_genes", or "pca_only". Default is NULL
+#'   (all genes).
+#' @param knn Integer. Neighbors for kernel bandwidth. Default is 5.
+#' @param knn_max Integer or NULL. Maximum neighbors. Default is 3 * knn.
+#' @param decay Numeric or NULL. Alpha decay parameter. Default is 1.
+#' @param t Integer or "auto". Diffusion steps. Default is 3.
+#' @param npca Integer or NULL. PCA components. Default is 100.
+#' @param solver "exact" or "approximate". Default is "exact".
+#' @param init Previous MAGIC result. Default is NULL.
+#' @param t_max Integer. Maximum t for automatic selection. Default is 20.
+#' @param distance Distance metric. Default is "euclidean".
+#' @param n_jobs Integer. Parallel workers (-1 for all). Default is 1.
+#' @param seed Integer or NULL. Random seed. Default is NULL.
+#' @param verbose Logical or integer. Default is TRUE.
+#' @param ... Additional arguments.
 #'
-#' @return For matrices/data.frames: A "magic" object containing:
-#'   \item{result}{Matrix of imputed expression values}
-#'   \item{diff_op}{The diffusion operator used}
-#'   \item{params}{List of parameters used}
-#'   \item{pca}{PCA results if npca was used, NULL otherwise}
+#' @return A "magic" object (for matrices) or modified input object (for Seurat/SCE).
 #'
-#'   For Seurat objects: The input object with a new assay containing imputed values.
-#'
-#'   For SingleCellExperiment: The input object with imputed values in a new assay.
-#'
-#' @details MAGIC uses diffusion on a cell-cell similarity graph to denoise
-#'   single-cell RNA-seq data. The algorithm:
+#' @details MAGIC denoises single-cell data using diffusion on a cell similarity graph:
 #'   \enumerate{
-#'     \item Optionally reduces dimensions via PCA
-#'     \item Builds a k-nearest neighbor graph
-#'     \item Constructs an alpha-decaying kernel
-#'     \item Creates a row-stochastic diffusion operator
-
-#'     \item Applies the diffusion operator t times to smooth expression
+#'     \item Optional PCA dimension reduction
+#'     \item Build k-nearest neighbor graph
+#'     \item Construct alpha-decaying kernel
+#'     \item Create row-stochastic diffusion operator
+#'     \item Apply diffusion operator t times
 #'   }
-#'
-#'   The level of smoothing is controlled by the parameter t. Higher values
-#'   of t result in more smoothing but may over-smooth the data.
+#'   
+#'   The imputation formula is: \eqn{X_{imputed} = P^t X}
 #'
 #' @references
-#' van Dijk, D., Sharma, R., Nainys, J., Yim, K., Kathail, P., Carr, A.J.,
-#' Burdziak, C., Moon, K.R., Chaffer, C.L., Pattabiraman, D., Bierie, B.,
-#' Mazutis, L., Wolf, G., Krishnaswamy, S., & Pe'er, D. (2018).
-#' Recovering gene interactions from single-cell data using data diffusion.
-#' Cell, 174(3), 716-729.e27. \doi{10.1016/j.cell.2018.05.061}
+#' van Dijk, D., et al. (2018). Recovering gene interactions from single-cell
+#' data using data diffusion. Cell, 174(3), 716-729.
+#' \doi{10.1016/j.cell.2018.05.061}
 #'
 #' @export
 #' @examples
 #' \dontrun{
-#' # Basic usage with matrix
+#' # Basic usage
 #' set.seed(42)
-#' data <- matrix(rpois(5000, lambda = 2), nrow = 500, ncol = 10)
-#' colnames(data) <- paste0("Gene", 1:10)
-#' rownames(data) <- paste0("Cell", 1:500)
-#'
-#' # Run MAGIC
-#' result <- magic(data, t = 3, verbose = TRUE)
-#'
-#' # Access imputed data
+#' data <- matrix(rpois(5000, 2), nrow = 500, ncol = 10)
+#' result <- magic(data, t = 3)
 #' imputed <- as.matrix(result)
 #'
-#' # Run on specific genes
-#' result_subset <- magic(data, genes = c("Gene1", "Gene2", "Gene3"))
+#' # Automatic t selection
+#' result <- magic(data, t = "auto")
 #'
-#' # With automatic t selection
-#' result_auto <- magic(data, t = "auto")
-#'
-#' # With Seurat object
-#' library(Seurat)
-#' seurat_obj <- CreateSeuratObject(counts = t(data))
-#' seurat_obj <- NormalizeData(seurat_obj)
-#' seurat_obj <- magic(seurat_obj)
+#' # Specific genes
+#' result <- magic(data, genes = c(1, 2, 3))
 #' }
 magic <- function(data, ...) {
   UseMethod("magic")
@@ -120,7 +81,6 @@ magic.default <- function(data,
                           verbose = TRUE,
                           ...) {
   
-  # Convert to matrix if needed
   if (is.data.frame(data)) {
     data <- as.matrix(data)
   }
@@ -162,7 +122,6 @@ magic.matrix <- function(data,
                          verbose = TRUE,
                          ...) {
   
-  # Start timing
   start_time <- Sys.time()
   
   # Validate parameters
@@ -176,65 +135,59 @@ magic.matrix <- function(data,
   if (!identical(t, "auto")) check_positive_int(t, "t")
   if (!is.null(decay)) check_positive(decay, "decay")
   
-  # Set seed if provided
+  # Set seed
   if (!is.null(seed)) {
     set.seed(seed)
-    vmessage(sprintf("Random seed set to %d", seed), verbose, level = 2)
   }
   
-  # Setup parallel backend if requested
+  # Parallel setup
   if (n_jobs != 1) {
     setup_parallel(n_jobs, verbose)
   }
   
-  # Validate and prepare data
+  # Validate data
   vmessage(sprintf("Running MAGIC on %d cells and %d genes...",
                    nrow(data), ncol(data)), verbose)
   
   data <- validate_data(data, verbose)
   
-  # Store original data info
+  # Store names
   original_rownames <- safe_rownames(data)
   original_colnames <- safe_colnames(data)
   
-  # Parse genes argument
+  # Parse genes
   genes_parsed <- parse_genes(genes, original_colnames)
   return_pca_only <- identical(genes_parsed$mode, "pca_only")
   gene_indices <- genes_parsed$indices
   
-  # Check if we can reuse previous diffusion operator
+  # Reuse diffusion operator if provided
   diff_op <- NULL
   pca_result <- NULL
   
   if (!is.null(init) && inherits(init, "magic")) {
-    vmessage("  Using diffusion operator from previous run...", verbose)
+    vmessage("  Using previous diffusion operator...", verbose)
     diff_op <- init$diff_op
     pca_result <- init$pca
     
-    # Validate dimensions match
     if (!is.null(diff_op) && nrow(diff_op) != nrow(data)) {
-      warning("Dimensions don't match previous run. Recomputing diffusion operator.")
+      warning("Dimension mismatch. Recomputing diffusion operator.")
       diff_op <- NULL
       pca_result <- NULL
     }
   }
   
-  # Compute diffusion operator if needed
+  # Build diffusion operator
   if (is.null(diff_op)) {
-    # PCA reduction if requested
+    # PCA
     if (!is.null(npca) && ncol(data) > npca) {
-      vmessage(sprintf("  Performing PCA (n_components=%d)...", npca), verbose)
-      pca_result <- timed(
-        compute_pca(data, npca, seed),
-        "PCA", verbose
-      )
+      vmessage(sprintf("  PCA (n=%d)...", npca), verbose)
+      pca_result <- timed(compute_pca(data, npca, seed), "PCA", verbose)
       data_for_graph <- pca_result$x
     } else {
       data_for_graph <- data
-      vmessage("  Skipping PCA (fewer genes than npca)", verbose, level = 2)
     }
     
-    # Build diffusion operator
+    # Diffusion operator
     vmessage("  Building diffusion operator...", verbose)
     diff_op <- timed(
       build_diffusion_operator(
@@ -249,11 +202,9 @@ magic.matrix <- function(data,
     )
   }
   
-  # Perform imputation
+  # Imputation
   if (solver == "approximate" || return_pca_only) {
-    # Approximate solver: impute in PCA space
     if (is.null(pca_result)) {
-      vmessage("  Computing PCA for approximate solver...", verbose)
       pca_result <- compute_pca(data, npca %||% 100, seed)
     }
     
@@ -275,8 +226,7 @@ magic.matrix <- function(data,
       imputed <- imputed_pca
       output_colnames <- paste0("PC", seq_len(ncol(imputed_pca)))
     } else {
-      # Project back to gene space
-      vmessage("  Projecting back to gene space...", verbose)
+      vmessage("  Projecting to gene space...", verbose)
       imputed <- project_from_pca(imputed_pca, pca_result, gene_indices)
       output_colnames <- if (is.null(gene_indices)) {
         original_colnames
@@ -285,14 +235,14 @@ magic.matrix <- function(data,
       }
     }
   } else {
-    # Exact solver: impute in gene space
+    # Exact solver
     if (!is.null(gene_indices)) {
       data_to_impute <- data[, gene_indices, drop = FALSE]
     } else {
       data_to_impute <- data
     }
     
-    vmessage("  Imputing gene expression...", verbose)
+    vmessage("  Imputing...", verbose)
     imputed <- timed(
       magic_impute(
         data = data_to_impute,
@@ -317,11 +267,11 @@ magic.matrix <- function(data,
   rownames(imputed) <- original_rownames
   colnames(imputed) <- output_colnames
   
-  # Get optimal t if auto was used
+  # Get t used
   optimal_t <- attr(imputed, "optimal_t")
   if (is.null(optimal_t)) optimal_t <- t
   
-  # Create result object
+  # Create result
   result <- list(
     result = as.data.frame(imputed),
     diff_op = diff_op,
@@ -342,7 +292,6 @@ magic.matrix <- function(data,
   
   class(result) <- c("magic", "list")
   
-  # Report timing
   elapsed <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   vmessage(sprintf("MAGIC complete in %s", format_time(elapsed)), verbose)
   
@@ -361,10 +310,7 @@ magic.data.frame <- function(data, ...) {
   magic.matrix(as.matrix(data), ...)
 }
 
-#' Parse Genes Argument
-#' @param genes User-provided genes argument
-#' @param colnames Column names of data
-#' @return List with mode and indices
+#' Parse genes argument
 #' @keywords internal
 parse_genes <- function(genes, colnames) {
   if (is.null(genes) || (length(genes) == 1 && genes == "all_genes")) {
@@ -376,7 +322,6 @@ parse_genes <- function(genes, colnames) {
   }
   
   if (is.character(genes)) {
-    # Gene names
     missing <- genes[!genes %in% colnames]
     if (length(missing) > 0) {
       warning(sprintf("Genes not found: %s", paste(missing, collapse = ", ")))
@@ -389,7 +334,6 @@ parse_genes <- function(genes, colnames) {
   }
   
   if (is.numeric(genes)) {
-    # Gene indices
     genes <- as.integer(genes)
     if (any(genes < 1) || any(genes > length(colnames))) {
       stop("Gene indices out of range", call. = FALSE)
@@ -401,21 +345,12 @@ parse_genes <- function(genes, colnames) {
 }
 
 #' Compute PCA
-#' @param data Data matrix
-#' @param npca Number of components
-#' @param seed Random seed
-#' @return PCA result with x (scores) and rotation (loadings)
 #' @keywords internal
 compute_pca <- function(data, npca, seed = NULL) {
   if (!is.null(seed)) set.seed(seed)
   
-  # Use irlba for fast PCA
   npca <- min(npca, min(dim(data)) - 1)
-  
-  # Center data
   data_centered <- scale(data, center = TRUE, scale = FALSE)
-  
-  # Fast randomized SVD via irlba
   pca_result <- irlba::prcomp_irlba(data_centered, n = npca, center = FALSE)
   
   return(list(
@@ -426,14 +361,9 @@ compute_pca <- function(data, npca, seed = NULL) {
   ))
 }
 
-#' Project from PCA Space Back to Gene Space
-#' @param imputed_pca Imputed PCA scores
-#' @param pca_result PCA result object
-#' @param gene_indices Indices of genes to return (NULL for all)
-#' @return Matrix in gene space
+#' Project from PCA to gene space
 #' @keywords internal
 project_from_pca <- function(imputed_pca, pca_result, gene_indices = NULL) {
-  # X_reconstructed = X_pca %*% t(rotation) + center
   result <- imputed_pca %*% t(pca_result$rotation)
   result <- sweep(result, 2, pca_result$center, "+")
   
@@ -444,9 +374,7 @@ project_from_pca <- function(imputed_pca, pca_result, gene_indices = NULL) {
   return(result)
 }
 
-#' Setup Parallel Backend
-#' @param n_jobs Number of workers
-#' @param verbose Verbosity level
+#' Setup parallel backend
 #' @keywords internal
 setup_parallel <- function(n_jobs, verbose = FALSE) {
   if (n_jobs == -1) {
@@ -454,15 +382,14 @@ setup_parallel <- function(n_jobs, verbose = FALSE) {
   }
   
   if (n_jobs > 1) {
-    vmessage(sprintf("  Setting up parallel backend with %d workers...", n_jobs),
-             verbose)
+    vmessage(sprintf("  Parallel: %d workers", n_jobs), verbose)
     future::plan(future::multisession, workers = n_jobs)
   }
   
   invisible(NULL)
 }
 
-# S3 Methods --------------------------------------------------------------
+# S3 Methods ----------------------------------------------------------------
 
 #' @rdname magic
 #' @export
@@ -471,10 +398,10 @@ print.magic <- function(x, ...) {
   cat("============\n")
   cat(sprintf("  Cells: %d\n", nrow(x$result)))
   cat(sprintf("  Genes: %d\n", ncol(x$result)))
-  cat(sprintf("  Parameters:\n"))
+  cat("  Parameters:\n")
   cat(sprintf("    knn: %d\n", x$params$knn))
   cat(sprintf("    decay: %s\n", x$params$decay %||% "NULL"))
-  cat(sprintf("    t: %d\n", x$params$t))
+  cat(sprintf("    t: %s\n", x$params$t))
   cat(sprintf("    solver: %s\n", x$params$solver))
   cat(sprintf("    distance: %s\n", x$params$distance))
   if (!is.null(x$params$npca)) {
@@ -501,7 +428,7 @@ as.data.frame.magic <- function(x, ...) {
   x$result
 }
 
-#' Subset MAGIC Result
+#' Subset MAGIC result
 #' @param x MAGIC object
 #' @param i Row indices
 #' @param j Column indices

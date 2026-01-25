@@ -1,63 +1,42 @@
 #' @title Diffusion Operations
-#' @description Functions for performing diffusion-based imputation.
+#' @description Functions for diffusion-based data imputation.
 #' @name diffusion
 NULL
 
 #' Perform MAGIC Imputation
 #'
-#' @description Applies the diffusion operator to impute/denoise gene expression.
+#' @description Applies the diffusion operator to impute and denoise data.
 #'
 #' @param data Matrix (cells x genes) to impute.
-#' @param diff_op Diffusion operator (Markov matrix) from \code{magic_diffusion_operator}.
-#' @param t Integer. Number of diffusion steps. Higher values = more smoothing.
-#'   If "auto", optimal t is selected automatically.
-#' @param t_max Integer. Maximum t to consider when t = "auto". Default is 20.
-#' @param threshold Numeric. Convergence threshold for automatic t selection.
-#'   Default is 0.001.
-#' @param solver Character. Either "exact" or "approximate". Default is "exact".
+#' @param diff_op Diffusion operator (Markov matrix).
+#' @param t Integer or "auto". Number of diffusion steps.
+#' @param t_max Integer. Maximum t for automatic selection. Default is 20.
+#' @param threshold Numeric. Convergence threshold for automatic t. Default is 0.001.
+#' @param solver Character. "exact" or "approximate". Default is "exact".
 #' @param verbose Logical or integer. Verbosity level.
 #'
-#' @return A matrix of imputed values with the same dimensions as input.
+#' @return A matrix of imputed values.
 #'
-#' @details MAGIC imputation is performed by repeatedly applying the diffusion
-#'   operator to the data:
+#' @details MAGIC imputation applies the diffusion operator repeatedly:
 #'   \deqn{X_{imputed} = P^t \times X}
-#'   where P is the diffusion operator and t is the number of steps.
-#'
-#'   When t = "auto", the algorithm iteratively applies P and stops when the
-#'   Procrustes disparity between successive iterations falls below the threshold.
+#'   
+#'   When t = "auto", the algorithm stops when the Procrustes disparity
+#'   between consecutive iterations falls below the threshold.
 #'
 #' @export
-#' @examples
-#' \dontrun{
-#' # Create example data
-#' set.seed(42)
-#' data <- matrix(rpois(1000, lambda = 5), nrow = 100, ncol = 10)
-#'
-#' # Build diffusion operator
-#' knn_graph <- magic_knn_graph(data, knn = 5)
-#' K <- compute_alpha_kernel(knn_graph)
-#' P <- magic_diffusion_operator(K)
-#'
-#' # Impute with fixed t
-#' data_imputed <- magic_impute(data, P, t = 3)
-#'
-#' # Impute with automatic t selection
-#' data_imputed_auto <- magic_impute(data, P, t = "auto")
-#' }
 magic_impute <- function(data,
-                          diff_op,
-                          t = 3,
-                          t_max = 20,
-                          threshold = 0.001,
-                          solver = c("exact", "approximate"),
-                          verbose = FALSE) {
+                         diff_op,
+                         t = 3,
+                         t_max = 20,
+                         threshold = 0.001,
+                         solver = c("exact", "approximate"),
+                         verbose = FALSE) {
   
   solver <- match.arg(solver)
   
   # Validate inputs
   if (!inherits(diff_op, "Matrix") && !is.matrix(diff_op)) {
-    stop("diff_op must be a matrix or Matrix object", call. = FALSE)
+    stop("diff_op must be a matrix", call. = FALSE)
   }
   
   if (nrow(diff_op) != ncol(diff_op)) {
@@ -65,7 +44,7 @@ magic_impute <- function(data,
   }
   
   if (nrow(diff_op) != nrow(data)) {
-    stop("Number of rows in data must match dimensions of diff_op", call. = FALSE)
+    stop("Number of rows in data must match diff_op dimensions", call. = FALSE)
   }
   
   # Handle t parameter
@@ -76,67 +55,41 @@ magic_impute <- function(data,
   check_positive_int(t_max, "t_max")
   check_positive(threshold, "threshold")
   
-  # Convert data to dense matrix for imputation
+  # Convert to dense
   data <- to_dense(data)
   
   if (auto_t) {
-    result <- magic_impute_auto_t(
-      data = data,
-      diff_op = diff_op,
-      t_max = t_max,
-      threshold = threshold,
-      verbose = verbose
-    )
+    result <- impute_with_auto_t(data, diff_op, t_max, threshold, verbose)
   } else {
-    result <- magic_impute_fixed_t(
-      data = data,
-      diff_op = diff_op,
-      t = t,
-      verbose = verbose
-    )
+    result <- impute_with_t(data, diff_op, t, verbose)
   }
   
   return(result)
 }
 
-#' Impute with Fixed t
-#'
-#' @description Internal function for imputation with fixed t.
+#' Imputation with specified t
 #' @param data Data matrix
 #' @param diff_op Diffusion operator
 #' @param t Number of steps
 #' @param verbose Verbosity level
 #' @return Imputed matrix
 #' @keywords internal
-magic_impute_fixed_t <- function(data, diff_op, t, verbose = FALSE) {
+impute_with_t <- function(data, diff_op, t, verbose = FALSE) {
   n_cells <- nrow(data)
   n_genes <- ncol(data)
   
   vmessage(sprintf("Imputing with t=%d...", t), verbose)
   
-  # Decide strategy based on matrix sizes
-  # If diff_op is smaller than data (n_cells < n_genes), power the operator first
-  # Otherwise, iterate multiplication
-  
+  # Choose strategy based on matrix dimensions
   if (n_cells < n_genes && t > 1) {
-    # Classic MAGIC: (P^t) * X is more efficient
-    vmessage(sprintf("  Using matrix power strategy (n_cells=%d < n_genes=%d)",
-                     n_cells, n_genes), verbose, level = 2)
-    
-    # Power the diffusion operator
-    P_t <- matrix_power(diff_op, t, verbose = verbose)
-    
-    # Single matrix multiplication
+    # Power the operator first, then multiply
+    P_t <- matrix_power(diff_op, t)
     result <- as.matrix(P_t %*% data)
-    
   } else {
-    # Fast MAGIC: iterative P * (P * ... * X)
-    vmessage("  Using iterative multiplication strategy", verbose, level = 2)
-    
+    # Iterative multiplication
     result <- data
     for (i in seq_len(t)) {
       result <- as.matrix(diff_op %*% result)
-      vmessage(sprintf("    Step %d/%d", i, t), verbose, level = 2)
     }
   }
   
@@ -149,44 +102,37 @@ magic_impute_fixed_t <- function(data, diff_op, t, verbose = FALSE) {
   return(result)
 }
 
-#' Impute with Automatic t Selection
-#'
-#' @description Internal function for imputation with automatic t selection.
+#' Imputation with automatic t selection
 #' @param data Data matrix
 #' @param diff_op Diffusion operator
-#' @param t_max Maximum t to try
+#' @param t_max Maximum t
 #' @param threshold Convergence threshold
 #' @param verbose Verbosity level
 #' @return Imputed matrix
 #' @keywords internal
-magic_impute_auto_t <- function(data, diff_op, t_max, threshold, verbose = FALSE) {
-  n_cells <- nrow(data)
+impute_with_auto_t <- function(data, diff_op, t_max, threshold, verbose = FALSE) {
   n_genes <- ncol(data)
   
   vmessage("Selecting optimal t automatically...", verbose)
   
-  # Subsample genes for faster error calculation if necessary
-  max_genes_for_error <- 500
-  if (n_genes > max_genes_for_error) {
-    subsample_idx <- sample(n_genes, max_genes_for_error)
-    vmessage(sprintf("  Subsampling %d genes for optimal t calculation",
-                     max_genes_for_error), verbose, level = 2)
+  # Subsample genes for faster error calculation
+  max_genes <- 500
+  if (n_genes > max_genes) {
+    subsample_idx <- sample(n_genes, max_genes)
   } else {
     subsample_idx <- NULL
   }
   
   # Initialize
   data_curr <- data
-  data_prev <- NULL
   t_opt <- NULL
   error_vec <- numeric(t_max)
   
   for (i in seq_len(t_max)) {
-    # Apply one step of diffusion
     data_prev <- data_curr
     data_curr <- as.matrix(diff_op %*% data_curr)
     
-    # Calculate error on subsampled genes
+    # Calculate Procrustes disparity
     if (!is.null(subsample_idx)) {
       error <- procrustes_disparity(
         data_prev[, subsample_idx, drop = FALSE],
@@ -197,76 +143,61 @@ magic_impute_auto_t <- function(data, diff_op, t_max, threshold, verbose = FALSE
     }
     
     error_vec[i] <- error
-    vmessage(sprintf("    t=%d: disparity=%.6f", i, error), verbose, level = 2)
     
     # Check convergence
     if (is.null(t_opt) && error < threshold) {
       t_opt <- i
-      vmessage(sprintf("  Optimal t selected: %d (disparity=%.6f)", t_opt, error),
-               verbose)
-      # Continue for a bit to ensure stability, but keep this result
+      vmessage(sprintf("  Optimal t: %d (disparity=%.6f)", t_opt, error), verbose)
       break
     }
   }
   
-  # If no convergence, use t_max
+  # Use t_max if no convergence
   if (is.null(t_opt)) {
     t_opt <- t_max
     warning(sprintf("Optimal t not found within t_max=%d. Using t_max.", t_max))
-    vmessage(sprintf("  Using t=%d (max)", t_opt), verbose)
   }
   
   # Preserve names
   rownames(data_curr) <- rownames(data)
   colnames(data_curr) <- colnames(data)
   
-  # Store optimal t as attribute
+  # Store metadata
   attr(data_curr, "optimal_t") <- t_opt
-  attr(data_curr, "error_vec") <- error_vec[1:min(t_opt + 5, t_max)]
+  attr(data_curr, "error_vec") <- error_vec[seq_len(min(t_opt + 5, t_max))]
   
   return(data_curr)
 }
 
-#' Compute Optimal t for MAGIC
+#' Compute Optimal t
 #'
-#' @description Determines the optimal number of diffusion steps using
-#'   Procrustes disparity analysis.
+#' @description Determines optimal diffusion steps using Procrustes analysis.
 #'
-#' @param data Matrix (cells x genes) of expression values.
+#' @param data Matrix (cells x genes).
 #' @param diff_op Diffusion operator.
 #' @param t_max Integer. Maximum t to test. Default is 20.
 #' @param threshold Numeric. Convergence threshold. Default is 0.001.
-#' @param subsample_genes Integer or NULL. Number of genes to subsample for
-#'   faster computation. If NULL, uses all genes. Default is 500.
-#' @param plot Logical. Whether to create a diagnostic plot. Default is FALSE.
+#' @param subsample_genes Integer or NULL. Genes to subsample. Default is 500.
+#' @param plot Logical. Create diagnostic plot. Default is FALSE.
 #' @param verbose Logical or integer. Verbosity level.
 #'
-#' @return A list containing:
-#'   \item{t_opt}{Optimal t value}
-#'   \item{error_vec}{Vector of Procrustes disparities for each t}
-#'   \item{threshold}{The threshold used}
+#' @return A list with t_opt, error_vec, and threshold.
 #'
 #' @export
-#' @examples
-#' \dontrun{
-#' # Analyze optimal t
-#' opt_t_result <- magic_optimal_t(data, P, t_max = 20, plot = TRUE)
-#' print(opt_t_result$t_opt)
-#' }
 magic_optimal_t <- function(data,
-                             diff_op,
-                             t_max = 20,
-                             threshold = 0.001,
-                             subsample_genes = 500,
-                             plot = FALSE,
-                             verbose = FALSE) {
+                            diff_op,
+                            t_max = 20,
+                            threshold = 0.001,
+                            subsample_genes = 500,
+                            plot = FALSE,
+                            verbose = FALSE) {
   
   check_positive_int(t_max, "t_max")
   check_positive(threshold, "threshold")
   
   n_genes <- ncol(data)
   
-  # Subsample genes if necessary
+  # Subsample genes
   if (!is.null(subsample_genes) && n_genes > subsample_genes) {
     gene_idx <- sample(n_genes, subsample_genes)
     data_sub <- data[, gene_idx, drop = FALSE]
@@ -285,10 +216,7 @@ magic_optimal_t <- function(data,
   for (i in seq_len(t_max)) {
     data_prev <- data_curr
     data_curr <- as.matrix(diff_op %*% data_curr)
-    
     error_vec[i] <- procrustes_disparity(data_prev, data_curr)
-    
-    vmessage(sprintf("  t=%d: disparity=%.6f", i, error_vec[i]), verbose, level = 2)
     
     if (is.null(t_opt) && error_vec[i] < threshold) {
       t_opt <- i
@@ -297,26 +225,14 @@ magic_optimal_t <- function(data,
   
   if (is.null(t_opt)) {
     t_opt <- t_max
-    warning(sprintf("Optimal t not found below threshold. Using t_max=%d.", t_max))
+    warning(sprintf("Optimal t not found. Using t_max=%d.", t_max))
   }
   
   vmessage(sprintf("  Optimal t: %d", t_opt), verbose)
   
-  # Create plot if requested
+  # Plot if requested
   if (plot) {
-    if (requireNamespace("ggplot2", quietly = TRUE)) {
-      plot_optimal_t(error_vec, t_opt, threshold)
-    } else {
-      # Base R plot
-      plot(seq_len(t_max), error_vec, type = "b", pch = 19,
-           xlab = "t", ylab = "Procrustes Disparity",
-           main = "Optimal t Selection")
-      points(t_opt, error_vec[t_opt], col = "red", pch = 19, cex = 2)
-      abline(h = threshold, lty = 2, col = "gray")
-      legend("topright", legend = c(sprintf("Optimal t = %d", t_opt), 
-                                     sprintf("Threshold = %.4f", threshold)),
-             col = c("red", "gray"), pch = c(19, NA), lty = c(NA, 2))
-    }
+    plot_disparity(error_vec, t_opt, threshold)
   }
   
   return(list(
@@ -326,55 +242,50 @@ magic_optimal_t <- function(data,
   ))
 }
 
-#' Plot Optimal t Analysis
-#' @param error_vec Vector of errors
+#' Plot disparity curve
+#' @param error_vec Vector of disparities
 #' @param t_opt Optimal t
 #' @param threshold Threshold value
 #' @keywords internal
-plot_optimal_t <- function(error_vec, t_opt, threshold) {
-  if (!requireNamespace("ggplot2", quietly = TRUE)) {
-    return(invisible(NULL))
+plot_disparity <- function(error_vec, t_opt, threshold) {
+  if (requireNamespace("ggplot2", quietly = TRUE)) {
+    df <- data.frame(t = seq_along(error_vec), disparity = error_vec)
+    
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = t, y = disparity)) +
+      ggplot2::geom_line(color = "steelblue", linewidth = 1) +
+      ggplot2::geom_point(color = "steelblue", size = 2) +
+      ggplot2::geom_point(data = df[t_opt, ], color = "red", size = 4) +
+      ggplot2::geom_hline(yintercept = threshold, linetype = "dashed", color = "gray50") +
+      ggplot2::labs(
+        title = "MAGIC: Optimal t Selection",
+        subtitle = sprintf("Optimal t = %d", t_opt),
+        x = "Diffusion steps (t)",
+        y = "Procrustes Disparity"
+      ) +
+      ggplot2::theme_minimal()
+    
+    print(p)
+    invisible(p)
+  } else {
+    # Base R plot
+    plot(seq_along(error_vec), error_vec, type = "b", pch = 19,
+         xlab = "t", ylab = "Procrustes Disparity",
+         main = "MAGIC: Optimal t Selection")
+    points(t_opt, error_vec[t_opt], col = "red", pch = 19, cex = 2)
+    abline(h = threshold, lty = 2, col = "gray")
   }
-  
-  df <- data.frame(
-    t = seq_along(error_vec),
-    disparity = error_vec
-  )
-  
-  p <- ggplot2::ggplot(df, ggplot2::aes(x = t, y = disparity)) +
-    ggplot2::geom_line(color = "steelblue", size = 1) +
-    ggplot2::geom_point(color = "steelblue", size = 2) +
-    ggplot2::geom_point(data = df[t_opt, ], color = "red", size = 4) +
-    ggplot2::geom_hline(yintercept = threshold, linetype = "dashed", color = "gray50") +
-    ggplot2::annotate("text", x = length(error_vec) * 0.8, y = threshold * 1.5,
-                      label = sprintf("threshold = %.4f", threshold)) +
-    ggplot2::labs(
-      title = "MAGIC Optimal t Selection",
-      subtitle = sprintf("Optimal t = %d", t_opt),
-      x = "Diffusion steps (t)",
-      y = "Procrustes Disparity"
-    ) +
-    ggplot2::theme_minimal() +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-      plot.subtitle = ggplot2::element_text(hjust = 0.5)
-    )
-  
-  print(p)
-  invisible(p)
 }
 
 #' Matrix Power
 #'
-#' @description Efficiently computes the power of a sparse matrix.
+#' @description Computes power of a matrix using binary exponentiation.
 #'
 #' @param M Square matrix
 #' @param n Power (positive integer)
-#' @param verbose Verbosity level
 #'
 #' @return M^n
 #' @keywords internal
-matrix_power <- function(M, n, verbose = FALSE) {
+matrix_power <- function(M, n) {
   if (n == 0) {
     return(Matrix::Diagonal(nrow(M)))
   }
@@ -382,7 +293,7 @@ matrix_power <- function(M, n, verbose = FALSE) {
     return(M)
   }
   
-  # Binary exponentiation for efficiency
+  # Binary exponentiation: O(log n) multiplications
   result <- Matrix::Diagonal(nrow(M))
   base <- M
   
