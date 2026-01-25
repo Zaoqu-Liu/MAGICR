@@ -9,6 +9,11 @@ export(magic_optimal_t)
 export(library_size_normalize)
 export(sqrt_normalize)
 export(log_transform)
+export(compute_alpha_kernel)
+export(has_cpp_acceleration)
+export(magicr_config)
+export(set_magicr_options)
+export(GetMAGICData)
 
 # S3 methods
 S3method(magic, default)

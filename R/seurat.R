@@ -11,10 +11,27 @@ detect_seurat_version <- function() {
     stop("Seurat package is required but not installed.", call. = FALSE)
   }
   
-  version <- utils::packageVersion("Seurat")
-  major <- as.integer(version[[1]][1])
+  # Extract major version safely
+  extract_major <- function(version_obj) {
+    version_str <- as.character(version_obj)
+    parts <- strsplit(version_str, "\\.")[[1]]
+    suppressWarnings(as.integer(parts[1]))
+  }
   
-  return(major)
+  seurat_version <- utils::packageVersion("Seurat")
+  seurat_major <- extract_major(seurat_version)
+  if (is.na(seurat_major)) seurat_major <- 4  # Default to v4
+  
+  # Also check SeuratObject version as it may differ
+  if (requireNamespace("SeuratObject", quietly = TRUE)) {
+    sobj_version <- utils::packageVersion("SeuratObject")
+    sobj_major <- extract_major(sobj_version)
+    if (is.na(sobj_major)) sobj_major <- seurat_major
+    # Use the higher version to ensure compatibility
+    return(max(seurat_major, sobj_major, na.rm = TRUE))
+  }
+  
+  return(seurat_major)
 }
 
 #' Get Data from Seurat Object
@@ -28,24 +45,41 @@ get_seurat_data <- function(object, assay = NULL, layer = "data") {
   version <- detect_seurat_version()
   
   if (is.null(assay)) {
-    if (version >= 5) {
-      assay <- SeuratObject::DefaultAssay(object)
-    } else {
-      assay <- Seurat::DefaultAssay(object)
-    }
+    assay <- SeuratObject::DefaultAssay(object)
   }
   
+  data <- NULL
+  
+  # Try v5 API first (LayerData)
   if (version >= 5) {
-    # Seurat v5 uses layers
     tryCatch({
       data <- SeuratObject::LayerData(object, assay = assay, layer = layer)
     }, error = function(e) {
-      # Fallback for v5 objects that might use old slots
-      data <- SeuratObject::GetAssayData(object, assay = assay, slot = layer)
+      # LayerData failed, will try fallback
     })
-  } else {
-    # Seurat v4 uses slots
-    data <- Seurat::GetAssayData(object, assay = assay, slot = layer)
+  }
+  
+  # Fallback: try GetAssayData with layer parameter (v5 style)
+  if (is.null(data)) {
+    tryCatch({
+      data <- SeuratObject::GetAssayData(object, assay = assay, layer = layer)
+    }, error = function(e) {
+      # layer parameter not supported
+    })
+  }
+  
+  # Fallback: try GetAssayData with slot parameter (v4 style)
+  if (is.null(data)) {
+    tryCatch({
+      # Suppress deprecation warnings
+      data <- suppressWarnings(
+        SeuratObject::GetAssayData(object, assay = assay, slot = layer)
+      )
+    }, error = function(e) {
+      stop("Could not extract data from Seurat object. ",
+           "Please ensure your Seurat/SeuratObject versions are compatible.",
+           call. = FALSE)
+    })
   }
   
   return(data)
@@ -62,16 +96,42 @@ get_seurat_data <- function(object, assay = NULL, layer = "data") {
 set_seurat_data <- function(object, data, assay, layer = "data") {
   version <- detect_seurat_version()
   
+  success <- FALSE
+  
+  # Try v5 API first
   if (version >= 5) {
-    # Seurat v5
     tryCatch({
       SeuratObject::LayerData(object, assay = assay, layer = layer) <- data
+      success <- TRUE
     }, error = function(e) {
-      SeuratObject::SetAssayData(object, assay = assay, slot = layer, new.data = data)
+      # LayerData assignment failed
     })
-  } else {
-    # Seurat v4
-    object <- Seurat::SetAssayData(object, assay = assay, slot = layer, new.data = data)
+  }
+  
+  # Try SetAssayData with layer parameter
+  if (!success) {
+    tryCatch({
+      object <- SeuratObject::SetAssayData(object, assay = assay, 
+                                           layer = layer, new.data = data)
+      success <- TRUE
+    }, error = function(e) {
+      # layer parameter not supported
+    })
+  }
+  
+  # Fallback: try with slot parameter (suppress deprecation)
+  if (!success) {
+    tryCatch({
+      object <- suppressWarnings(
+        SeuratObject::SetAssayData(object, assay = assay, 
+                                   slot = layer, new.data = data)
+      )
+      success <- TRUE
+    }, error = function(e) {
+      stop("Could not set data in Seurat object. ",
+           "Please check Seurat/SeuratObject compatibility.",
+           call. = FALSE)
+    })
   }
   
   return(object)
@@ -222,24 +282,60 @@ magic.Seurat <- function(data,
   # Get imputed data and transpose back to genes x cells
   imputed_data <- t(as.matrix(magic_result$result))
   
+  # Ensure it's a sparse matrix for Seurat compatibility
+  if (!inherits(imputed_data, "dgCMatrix")) {
+    imputed_data <- as(imputed_data, "dgCMatrix")
+  }
+  
   # Create new assay
   vmessage(sprintf("Creating new assay '%s'...", new_assay_name), verbose)
   
-  if (version >= 5) {
-    # Seurat v5
+  # Check what type of Assay the existing object uses
+  existing_assay_class <- class(data[[assay]])[1]
+  
+  new_assay <- NULL
+  
+  # If the existing assay is v3/v4 style (Assay class), use CreateAssayObject
+  if (existing_assay_class == "Assay") {
+    tryCatch({
+      new_assay <- SeuratObject::CreateAssayObject(data = imputed_data)
+    }, error = function(e) {
+      # CreateAssayObject failed
+    })
+  }
+  
+  # Try CreateAssay5Object for v5 Assay5 class
+  if (is.null(new_assay) && existing_assay_class == "Assay5") {
     tryCatch({
       new_assay <- SeuratObject::CreateAssay5Object(data = imputed_data)
     }, error = function(e) {
-      # Fallback to v4 style
-      new_assay <- SeuratObject::CreateAssayObject(data = imputed_data)
+      # CreateAssay5Object failed
     })
-  } else {
-    # Seurat v4
-    new_assay <- Seurat::CreateAssayObject(data = imputed_data)
   }
   
-  # Add assay to object
-  data[[new_assay_name]] <- new_assay
+  # Final fallback: try CreateAssayObject regardless
+  if (is.null(new_assay)) {
+    tryCatch({
+      new_assay <- SeuratObject::CreateAssayObject(data = imputed_data)
+    }, error = function(e) {
+      stop("Could not create assay object. Error: ", e$message,
+           call. = FALSE)
+    })
+  }
+  
+  # Add assay to object using the appropriate method
+  tryCatch({
+    data[[new_assay_name]] <- new_assay
+  }, error = function(e) {
+    # If direct assignment fails, try alternative methods
+    tryCatch({
+      data@assays[[new_assay_name]] <- new_assay
+    }, error = function(e2) {
+      stop("Could not add assay to Seurat object. ",
+           "This may be due to version incompatibility. Error: ", e$message,
+           call. = FALSE)
+    })
+  })
   
   # Store MAGIC info in misc slot
   if (is.null(data@misc$MAGIC)) {
