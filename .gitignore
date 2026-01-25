@@ -9,10 +9,12 @@
 *.tar.gz
 *.tgz
 *.zip
-MAGICR.Rcheck/
+*.Rcheck/
+..Rcheck/
 src/*.o
 src/*.so
 src/*.dll
+src/symbols.rds
 
 # IDE
 .idea/
@@ -24,8 +26,9 @@ src/*.dll
 Thumbs.db
 
 # Compiled documentation
-docs/
 man/*.Rd.bak
 
 # Test artifacts
 tests/testthat/_snaps/
+/doc/
+/Meta/

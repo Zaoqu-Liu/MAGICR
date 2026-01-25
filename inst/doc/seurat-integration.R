@@ -1,0 +1,166 @@
+## ----setup, include = FALSE---------------------------------------------------
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE,
+  eval = FALSE
+)
+
+## ----eval=FALSE---------------------------------------------------------------
+# # Install required packages
+# install.packages("Seurat")
+# install.packages("MAGICR", repos = "https://zaoqu-liu.r-universe.dev")
+
+## -----------------------------------------------------------------------------
+# library(Seurat)
+# library(MAGICR)
+# 
+# # Create example Seurat object
+# # In practice, load your own data
+# data(magic_testdata)
+# seurat_obj <- CreateSeuratObject(counts = t(magic_testdata))
+
+## -----------------------------------------------------------------------------
+# # Normalize data
+# seurat_obj <- NormalizeData(seurat_obj)
+# 
+# # Find variable features
+# seurat_obj <- FindVariableFeatures(seurat_obj, nfeatures = 2000)
+# 
+# # Scale data
+# seurat_obj <- ScaleData(seurat_obj)
+# 
+# # Run PCA
+# seurat_obj <- RunPCA(seurat_obj, npcs = 50)
+
+## -----------------------------------------------------------------------------
+# # Run MAGIC on the Seurat object
+# seurat_obj <- magic(seurat_obj,
+#                     assay = "RNA",
+#                     t = 3,
+#                     knn = 5)
+# 
+# # MAGIC results are stored in a new assay
+# Assays(seurat_obj)
+
+## -----------------------------------------------------------------------------
+# # Switch to MAGIC assay for downstream analysis
+# DefaultAssay(seurat_obj) <- "MAGIC_RNA"
+# 
+# # Get imputed expression matrix
+# magic_data <- GetAssayData(seurat_obj, assay = "MAGIC_RNA", layer = "data")
+
+## ----fig.width=10, fig.height=5-----------------------------------------------
+# # Compare gene expression
+# gene <- "Gene1"
+# 
+# p1 <- FeaturePlot(seurat_obj, features = gene,
+#                   reduction = "pca", slot = "data") +
+#       ggtitle("Original")
+# 
+# DefaultAssay(seurat_obj) <- "MAGIC_RNA"
+# p2 <- FeaturePlot(seurat_obj, features = gene,
+#                   reduction = "pca", slot = "data") +
+#       ggtitle("After MAGIC")
+# 
+# p1 | p2
+
+## ----fig.width=10, fig.height=5-----------------------------------------------
+# # Gene-gene relationships are clearer after MAGIC
+# DefaultAssay(seurat_obj) <- "RNA"
+# p1 <- FeatureScatter(seurat_obj, feature1 = "Gene1", feature2 = "Gene2") +
+#       ggtitle("Original")
+# 
+# DefaultAssay(seurat_obj) <- "MAGIC_RNA"
+# p2 <- FeatureScatter(seurat_obj, feature1 = "Gene1", feature2 = "Gene2") +
+#       ggtitle("After MAGIC")
+# 
+# p1 | p2
+
+## -----------------------------------------------------------------------------
+# # Only impute specific genes (faster)
+# seurat_obj <- magic(seurat_obj,
+#                     assay = "RNA",
+#                     genes = c("Gene1", "Gene2", "Gene3"),
+#                     t = 3)
+
+## -----------------------------------------------------------------------------
+# # Let MAGIC determine optimal diffusion time
+# seurat_obj <- magic(seurat_obj,
+#                     assay = "RNA",
+#                     t = "auto",
+#                     t_max = 20)
+
+## -----------------------------------------------------------------------------
+# # Fine-tune parameters for your data
+# seurat_obj <- magic(seurat_obj,
+#                     assay = "RNA",
+#                     knn = 10,           # More neighbors
+#                     knn_max = 30,       # Larger neighborhood
+#                     decay = 2,          # Sharper kernel
+#                     t = 5,              # More diffusion
+#                     npca = 50,          # Fewer PCs
+#                     solver = "approximate")  # Faster
+
+## -----------------------------------------------------------------------------
+# # Check Seurat version
+# packageVersion("Seurat")
+# 
+# # MAGICR handles both versions automatically
+# seurat_obj <- magic(seurat_obj, assay = "RNA", t = 3)
+
+## -----------------------------------------------------------------------------
+# # Seurat v5: Access specific layers
+# magic_data <- GetAssayData(seurat_obj, assay = "MAGIC_RNA", layer = "data")
+
+## -----------------------------------------------------------------------------
+# # Use MAGIC data for trajectory analysis
+# DefaultAssay(seurat_obj) <- "MAGIC_RNA"
+# 
+# # Run UMAP on MAGIC data
+# seurat_obj <- RunUMAP(seurat_obj, dims = 1:30)
+# 
+# # Trajectory analysis with Monocle3 or slingshot
+# # ... (use imputed expression for pseudotime)
+
+## -----------------------------------------------------------------------------
+# # MAGIC helps reveal gene-gene correlations
+# DefaultAssay(seurat_obj) <- "MAGIC_RNA"
+# magic_expr <- GetAssayData(seurat_obj, layer = "data")
+# 
+# # Compute correlation matrix
+# cor_matrix <- cor(t(as.matrix(magic_expr[1:100, ])))
+
+## -----------------------------------------------------------------------------
+# # Use approximate solver for large datasets
+# seurat_obj <- magic(seurat_obj,
+#                     solver = "approximate",
+#                     npca = 50)
+# 
+# # Or impute only genes of interest
+# seurat_obj <- magic(seurat_obj,
+#                     genes = VariableFeatures(seurat_obj)[1:500])
+
+## -----------------------------------------------------------------------------
+# # Reduce memory usage
+# seurat_obj <- magic(seurat_obj,
+#                     solver = "approximate",
+#                     npca = 30)
+
+## -----------------------------------------------------------------------------
+# # Enable parallel processing
+# library(future)
+# plan(multisession, workers = 4)
+# seurat_obj <- magic(seurat_obj, t = 3)
+
+## -----------------------------------------------------------------------------
+# # Reduce diffusion time
+# seurat_obj <- magic(seurat_obj, t = 2)
+
+## ----eval=TRUE----------------------------------------------------------------
+sessionInfo()
+

@@ -12,3 +12,5 @@
 ^CRAN-SUBMISSION$
 ^\.Rcheck$
 ^.*\.tar\.gz$
+^doc$
+^Meta$
