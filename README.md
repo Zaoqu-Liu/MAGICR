@@ -3,7 +3,6 @@
 <!-- badges: start -->
 [![R-universe](https://zaoqu-liu.r-universe.dev/badges/MAGICR)](https://zaoqu-liu.r-universe.dev/MAGICR)
 [![R-CMD-check](https://github.com/Zaoqu-Liu/MAGICR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/Zaoqu-Liu/MAGICR/actions/workflows/R-CMD-check.yaml)
-[![CRAN status](https://www.r-pkg.org/badges/version/MAGICR)](https://CRAN.R-project.org/package=MAGICR)
 [![License: GPL-2](https://img.shields.io/badge/License-GPL--2-blue.svg)](https://www.gnu.org/licenses/gpl-2.0)
 <!-- badges: end -->
 
